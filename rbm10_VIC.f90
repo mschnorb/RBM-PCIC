@@ -101,7 +101,7 @@ read(90,'(A)') heat_file
 !
 !     Open file with meteorologic data
 !     
-open(unit=36,FILE=TRIM(heat_file) ,FORM='FORMATTED',ACCESS='DIRECT' ,RECL=50,STATUS='old')
+open(unit=36,FILE=TRIM(heat_file) ,FORM='FORMATTED',ACCESS='DIRECT' ,RECL=60,STATUS='old')
 !
 !     Call systems programs to get started
 !

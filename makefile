@@ -12,7 +12,7 @@ objects = rbm10_VIC.o Begin.o Systmm.o Particle_Track.o \
 f90comp = gfortran
 # Makefile
 rbm10_VIC: $(objects)
-	$(f90comp) -o rbm10_VIC $(objects)
+	$(f90comp) -o RBM_PCIC $(objects)
 Block_Energy.o: Block_Energy.f90
 	$(f90comp) -c Block_Energy.f90
 block_energy.mod: Block_Energy.f90
@@ -49,5 +49,5 @@ rbm10_VIC.o: rbm10_VIC.f90
 # Cleaning everything
 clean:
 	rm block_energy.mod block_hydro.mod block_network.mod\
-           rbm10_VIC
+           RBM_PCIC
 	rm $(objects)

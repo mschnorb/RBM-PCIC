@@ -13,6 +13,10 @@ module Block_Energy
 !   Air temperature at surface, deg. C
 !
     real, dimension(:), allocatable::dbt
+!
+!   Soil temperature (vertical average), deg. C
+!
+    real, dimension(:), allocatable::tsoil
 !  
 !   Wind speed, m/sec
 !
