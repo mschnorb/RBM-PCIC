@@ -7,8 +7,12 @@ from netCDF4 import Dataset  #, date2num, date2index, num2date
 # Set arrays for column/row moves using numbers 1-8
 # from the direction file
 # Work in Python, modified from the initial Perl script.
-col_move=(0 , 1, 1, 1, 0, -1, -1, -1) #col_move=(0,0,1,1,1,0,-1,-1,-1)
-row_move=(-1,-1, 0, 1, 1,  1,  0, -1) #row_move=(0,1,1,0,-1,-1,-1,0,1)
+
+#col_move=(0 , 1, 1, 1, 0, -1, -1, -1) #col_move=(0,0,1,1,1,0,-1,-1,-1)
+#row_move=(-1,-1, 0, 1, 1,  1,  0, -1) #row_move=(0,1,1,0,-1,-1,-1,0,1)
+col_move=(0,1,1,1,0,-1,-1,-1)
+row_move=(1,1,0,-1,-1,-1,0,1)
+
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!#
 #!!!!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!#
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!#
@@ -30,13 +34,15 @@ print("")
 #ipath = "/home/programmer_analyst/Workspace/rbm/"  # On my laptop
 ipath = "/storage/home/gdayon/Workspace/rbm/"       # On lynx
 #ific  = ipath+"rvic.parameters_fraser_v2.nc"        # Fraser file
-#ific  = ipath+"Salmon_Flowdir.nc"        # Test file
-ific  = ipath+"mySalmon_Flowdir.nc"        # Test file
+#ific  = ipath+"Salmon_Flowdir.nc"         # Test file
+#ific  = ipath+"mySalmon_Flowdir.nc"       # Test file
+ific  = ipath+"rvic.parameters_baker_v2.nc"       # Test file
 fic   = Dataset(ific)
 
-#ofic  = ipath+"Salmon_Network"
-ofic  = ipath+"mySalmon_Network"
 #ofic  = ipath+"Fraser_Network"
+#ofic  = ipath+"Salmon_Network"
+#ofic  = ipath+"mySalmon_Network"
+ofic  = ipath+"Baker_Network"
 
 # Flow direction
 Flow_dir = fic.variables['Flow_Direction']
@@ -45,16 +51,22 @@ Flow_dir[Flow_dir < 0] = np.nan
 ncells   = np.count_nonzero(~np.isnan(Flow_dir)) # Number of active cells
 
 # Flow distance
-#Flow_dis = fic.variables['Flow_Distance']
-#Flow_dis = np.matrix(Flow_dis)
-Flow_dis = np.ones(Flow_dir.shape)
+Flow_dis = fic.variables['Flow_Distance']
+Flow_dis = np.matrix(Flow_dis)
+#Flow_dis = np.ones(Flow_dir.shape)
 
 # Read the grid
-lat      = fic.variables['lat']
-lon      = fic.variables['lon'] 
+lat      = np.array( fic.variables['lat'] )
+lon      = np.array( fic.variables['lon'] )
 nlat     = len(lat)
 nlon     = len(lon)
 nall     = nlat * nlon # Total number of cells
+
+if(lat[0] > lat[1]): # Check if lat is in ascending order
+   lat      = lat[::-1]
+   Flow_dir = np.flipud(Flow_dir)
+   Flow_dis = np.flipud(Flow_dis)
+
 ############ End of Open an read direction file
 ################################################
 ################################################
@@ -82,6 +94,8 @@ cell_lon = np.reshape(lon2d[icells[0],icells[1]], ncells)
 
 # Length of active cells
 Length   = np.reshape(Flow_dis[icells[0],icells[1]], ncells)
+Length   = np.array(Length.tolist()[0])
+Length   = Length * 0.0006213712 # Meters to miles
 ############ End of Define some array
 ################################################
 ################################################
@@ -295,10 +309,10 @@ for lv in range(len(lorder_stream)-1,-1,-1):
 print(ofic)
 f = open(ofic, "w")
 
-f.write("Test Example for input RBM10_VIC, writtent by my Python scripts\n")
-f.write("Salmon.DA_flow\n") # Forcing files
-f.write("Salmon.DA_heat\n") # Forcing files
-f.write("20000101".rjust(10)+"20011231".rjust(10)+"1".rjust(10)+"\n") # Start - End dates / Timesteps
+f.write("Networtk file for BAKER test case\n")
+f.write("Baker.DA_flow\n") # Forcing files
+f.write("Baker.DA_heat\n") # Forcing files
+f.write("19890101".rjust(10)+"20051231".rjust(10)+"1".rjust(10)+"\n") # Start - End dates / Timesteps
 f.write(str(nhead).rjust(10)+str(ncells-1).rjust(10)+str(ncells+nhead-1).rjust(10)+"FALSE".rjust(21)+"\n")
 
 for lv in range(len(lorder_stream)-1,-1,-1):
@@ -341,8 +355,8 @@ for lv in range(len(lorder_stream)-1,-1,-1):
       myLength = Total_length
       for nd in mystream[0:istart+1]:
          # My cell and its new number
-         row = str(cell_row[nd])
-         col = str(cell_col[nd])
+         row = str(cell_row[nd] + 1)
+         col = str(cell_col[nd] + 1)
 
          n0_cell = list(set(np.where(node_n0_2write == nd)[0]) & set(np.where(node_st_2write == st)[0]))
          n0_cell = str(n0_cell[0] + 1)
