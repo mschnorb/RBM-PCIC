@@ -6,22 +6,8 @@ from netCDF4 import Dataset  #, date2num, date2index, num2date
 
 # Set arrays for column/row moves using numbers 1-8
 # from the direction file
-# Work in Python, modified from the initial Perl script.
-
-#col_move=(0 , 1, 1, 1, 0, -1, -1, -1) #col_move=(0,0,1,1,1,0,-1,-1,-1)
-#row_move=(-1,-1, 0, 1, 1,  1,  0, -1) #row_move=(0,1,1,0,-1,-1,-1,0,1)
 col_move=(0,1,1,1,0,-1,-1,-1)
 row_move=(1,1,0,-1,-1,-1,0,1)
-
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!#
-#!!!!!!!!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!#
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!#
-# In the initial Perl script, rows numbers start at the botton of the table.
-# In Python here, they start at the top. We may want to modified that,
-# as the behavior of RBM is unknow.
-# Make sure that columns with missing data are deleted (might be optional)
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!#
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!#
 
 # QUAD is an array with the obverse directions, e.g.
 # 5 comes from 1, 6 comes from 2 ...
@@ -31,18 +17,12 @@ print("")
 ################################################
 ################################################
 ############ Open an read direction file
-#ipath = "/home/programmer_analyst/Workspace/rbm/"  # On my laptop
 ipath = "/storage/home/gdayon/Workspace/rbm/"       # On lynx
-#ific  = ipath+"rvic.parameters_fraser_v2.nc"        # Fraser file
-#ific  = ipath+"Salmon_Flowdir.nc"         # Test file
-#ific  = ipath+"mySalmon_Flowdir.nc"       # Test file
 ific  = ipath+"rvic.parameters_baker_v2.nc"       # Test file
 fic   = Dataset(ific)
 
-#ofic  = ipath+"Fraser_Network"
-#ofic  = ipath+"Salmon_Network"
-#ofic  = ipath+"mySalmon_Network"
-ofic  = ipath+"Baker_Network"
+opath = "/storage/home/gdayon/hydro/RBM-PCIC/"       # On lynx
+ofic  = opath+"Baker_Network"
 
 # Flow direction
 Flow_dir = fic.variables['Flow_Direction']
@@ -53,7 +33,6 @@ ncells   = np.count_nonzero(~np.isnan(Flow_dir)) # Number of active cells
 # Flow distance
 Flow_dis = fic.variables['Flow_Distance']
 Flow_dis = np.matrix(Flow_dis)
-#Flow_dis = np.ones(Flow_dir.shape)
 
 # Read the grid
 lat      = np.array( fic.variables['lat'] )
@@ -310,8 +289,8 @@ print(ofic)
 f = open(ofic, "w")
 
 f.write("Networtk file for BAKER test case\n")
-f.write("Baker.DA_flow\n") # Forcing files
-f.write("Baker.DA_heat\n") # Forcing files
+f.write("Baker.DA_flow_TG\n") # Forcing files
+f.write("Baker.DA_heat_TG\n") # Forcing files
 f.write("19890101".rjust(10)+"20051231".rjust(10)+"1".rjust(10)+"\n") # Start - End dates / Timesteps
 f.write(str(nhead).rjust(10)+str(ncells-1).rjust(10)+str(ncells+nhead-1).rjust(10)+"FALSE".rjust(21)+"\n")
 
@@ -366,8 +345,8 @@ for lv in range(len(lorder_stream)-1,-1,-1):
          lon = str(cell_lon[nd])
 
          # Length
-         myLength = myLength - Length[nd]
-         
+         myLength = abs(myLength - Length[nd]) # In case it goes under zero because of truncation
+
          f.write("Node"+n0_cell.rjust(6)+" Row"+row.rjust(6)+" Column"+col.rjust(6)+"  Lat"+lat.rjust(9)+" Long"+lon.rjust(11)+" R.M. =")
          f.write(str(format(myLength, "5.2f")).rjust(10))
          f.write(str(2).rjust(5)+"\n")

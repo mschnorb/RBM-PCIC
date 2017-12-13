@@ -22,10 +22,11 @@ print("")
 #ipath = "/home/programmer_analyst/Workspace/rbm/"  # On my laptop
 iparam = "/storage/home/gdayon/Workspace/rbm/" # On lynx
 iforcs = "/storage/home/gdayon/hydro/BAKER/" # On lynx
+opath  = "/storage/home/gdayon/hydro/RBM-PCIC/" # On lynx
 
 ### Output files
-oflow = iparam+"Baker.DA_flow_TG"
-oheat = iparam+"Baker.DA_heat_TG"
+oflow = opath+"Baker.DA_flow_TG"
+oheat = opath+"Baker.DA_heat_TG"
 
 ### Parameters
 fic   = iparam+"rvic.parameters_baker_v2.nc"        # Fraser file
@@ -84,7 +85,7 @@ SoilTemp[ SoilTemp == 1e+20 ] = np.nan
 SoilTemp    = np.nanmean(SoilTemp, axis = 1)
 
 ### Network
-fic   = iparam+"Baker_Network"
+fic   = opath+"Baker_Network"
 nfic  = open(fic, 'r')
 
 # The node to write with their lat/lon
@@ -148,7 +149,6 @@ ivlat = []   # Indice for velocity
 ivlon = []   # Indice for velocity
 
 print("Write Flow forcing file")
-#t0 = time.time()
 ofic = open(oflow, "w")
 for t in range(len(stime)):
    #print("Flow forcings file t:",t)
@@ -205,10 +205,8 @@ for t in range(len(stime)):
       nnode = '{:5d}'.format(mynode)
 
       ofic.write(str(tstep)+str(nnode)+str(Qin)+str(Qout)+str(Qdif)+str(mydepth)+str(mywidth)+str(Vel)+"     ")
-      
+
 ofic.close()
-#d = time.time() - t0
-#print("duration: %.2f s." % d)
 
 ############# End of Write Flow forcing file
 #################################################
