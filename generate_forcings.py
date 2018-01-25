@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import math
 import numpy as np
 from netCDF4 import Dataset  #, date2num, date2index, num2date
 #import time
@@ -50,24 +51,34 @@ Depth = 0.93 * Area**0.490  # From Yearsley 2012 (in m)
 Width = 0.08 * Area**0.396  # From Yearsley 2012 (in m)
 Depth,Width = Depth * 3.2808398950131, Width * 3.2808398950131 # meters to feet
 
-### Forcings water
-fic   = iforcs+"flow_full/hist/BAKER.rvic.h0a.2006-01-01.nc"
+###### Forcings water
+### Streamflow from Runoff
+fic   = iforcs+"flow_runoff/hist/BAKER.rvic.h0a.2006-01-01.nc"
 wfic  = Dataset(fic)
 
-# Streamflow
-Streamflow = np.array(wfic.variables['streamflow'])
-Streamflow = Streamflow * 35.3146665722226 # meters3.s-1 to feet3.s-1
-stime      = wfic.variables['time']
-slat       = wfic.variables['lat']
-slon       = wfic.variables['lon']
+QRunoff = np.array(wfic.variables['streamflow']) # In mm.day-1
+QRunoff = QRunoff * 35.3146665722226 # meters3.s-1 to feet3.s-1
+stime   = np.array(wfic.variables['time'])
+slat    = np.array(wfic.variables['lat'])
+slon    = np.array(wfic.variables['lon'])
+wfic.close()
 
-### Forcings energy
+### Streamflow from Baseflow
+fic   = iforcs+"flow_baseflow/hist/BAKER.rvic.h0a.2006-01-01.nc"
+wfic  = Dataset(fic)
+
+QBaseflow = np.array(wfic.variables['streamflow'])
+QBaseflow = QBaseflow * 35.3146665722226 # meters3.s-1 to feet3.s-1
+wfic.close()
+
+###### Forcings energy
 fic   = iforcs+"flux/results.nc"
 efic  = Dataset(fic)
 
 # AirTemp, VapPress, Short, Long etc...
 AirTemp    = np.array(efic.variables['AIR_TEMP'])
 SoilTemp   = np.array(efic.variables['SOIL_TEMP'])
+Ratio      = np.array(efic.variables['RATIO'])
 VapPress   = np.array(efic.variables['VP'])
 Short      = np.array(efic.variables['SHORTWAVE'])
 Long       = np.array(efic.variables['LONGWAVE'])
@@ -75,14 +86,52 @@ Density    = np.array(efic.variables['DENSITY'])
 Press      = np.array(efic.variables['PRESSURE'])
 Wind       = np.array(efic.variables['WIND'])
 etime      = efic.variables['time']
-elat       = efic.variables['lat']
-elon       = efic.variables['lon']
+elat       = np.array(efic.variables['lat'])
+elon       = np.array(efic.variables['lon'])
 
 VapPress    = VapPress * 10
 Short, Long = Short * 0.238845897e-3, Long * 0.238845897e-3 # W.m-2 to Kcal.s-1.m-2
 
 SoilTemp[ SoilTemp == 1e+20 ] = np.nan
-SoilTemp    = np.nanmean(SoilTemp, axis = 1)
+SoilTemp = SoilTemp[:,2,:,:]
+
+###### Runoff and Baseflow
+Runoff     = np.array(efic.variables['RUNOFF'])
+Baseflow   = np.array(efic.variables['BASEFLOW'])
+Snow_melt  = np.array(efic.variables['SNOW_MELT'])
+Snow_melt  = Snow_melt / 1000 # mm to meters
+
+fic        = iforcs+"rvic.domain_fraser_v2.nc"  # Fraser file
+dfic       = Dataset(fic)
+GridArea   = np.array(dfic.variables['area']) # In m2
+glat       = np.array(dfic.variables['lat'])
+glon       = np.array(dfic.variables['lon'])
+
+ilat = np.where( (min(elat)<=glat) & (glat<=max(elat)) )[0]
+ilon = np.where( (min(elon)<=glon) & (glon<=max(elon)) )[0]
+myGrid     = GridArea[ ilat, :]
+myGrid     = myGrid[:, ilon]
+
+Runoff     = Runoff    * 1e-3 * myGrid / 86400 # In meters3.s-1
+Baseflow   = Baseflow  * 1e-3 * myGrid / 86400 # In meters3.s-1
+Snow_melt  = Snow_melt * 1e-3 * myGrid / 86400 # In meters3.s-1
+
+Runoff     = Runoff    * 35.3146665722226 # meters3.s-1 to feet3.s-1
+Baseflow   = Baseflow  * 35.3146665722226 # meters3.s-1 to feet3.s-1
+Snow_melt  = Snow_melt * 35.3146665722226 # meters3.s-1 to feet3.s-1
+
+## Compute the Annual temperature
+navg    = 365
+ndays   = len(etime)
+AirYear = np.copy(AirTemp)
+
+for i in range(ndays):
+   if( i < round(navg/2)):
+      AirYear[i,:,:] = np.nanmean(AirTemp[0:navg-1,:,:], axis = 0)
+   elif( i > (ndays - round(navg/2)) ):
+      AirYear[i,:,:] = np.nanmean(AirTemp[ndays-navg-1:ndays-1,:,:], axis = 0)
+   else:
+      AirYear[i,:,:] = np.nanmean(AirTemp[ i-round(navg/2):i+round(navg/2)+1,:,:], axis = 0)
 
 ### Network
 fic   = opath+"Baker_Network"
@@ -147,6 +196,8 @@ iinq  = []   # Indice for inflow and Area
 ioutq = []   # Indice for outflows and Area
 ivlat = []   # Indice for velocity
 ivlon = []   # Indice for velocity
+irlat = []   # Indice for Runoff and Baseflow
+irlon = []   # Indice for Runoff and Baseflow
 
 print("Write Flow forcing file")
 ofic = open(oflow, "w")
@@ -167,10 +218,15 @@ for t in range(len(stime)):
          new_ivlon = list(vlon).index(mylon)
          ivlat.append(new_ivlat)
          ivlon.append(new_ivlon)
-
          
-         if mynode in HeadCell: # We have a headwater : Qin = Qout
-            iinq[n].append(ioutq[n])
+         # Runoff and Baseflow
+         new_irlat = list(elat).index(mylat)
+         new_irlon = list(elon).index(mylon)
+         irlat.append(new_irlat)
+         irlon.append(new_irlon)
+
+         if mynode in HeadCell: # We have a headwater : Qin = 0.
+            ... # Do nothing, Qin = 0.
             
          elif mynode not in TribCell: # Only one stream, the previous one
             iinq[n].append(ioutq[n-1])
@@ -181,17 +237,46 @@ for t in range(len(stime)):
 
             # Then the Tributaries
             iTribs = (i for (i,n) in enumerate(TribCell) if n==mynode)
-            for i,ocell,olat,olon in zip(iTribs,OutCell,OutLat,OutLon):
+            for i in iTribs:
+               ocell = OutCell[i]
+               olat  = OutLat[i]
+               olon  = OutLon[i]
+
                nolat = np.isin(slat, olat)
                nolon = np.isin(slon, olon)
                new_sii  = np.where(nolat & nolon)[0]
                iinq[n].append(new_sii[0])
 
-      Qin  = Streamflow[t,ioutq[n]]
-      Qout = Streamflow[t,ioutq[n]]
-      Qdif = 0.
+      Qout = QRunoff[t,ioutq[n]]       + QBaseflow[t,ioutq[n]]
+         
+      if(t == 0):
+         Qin = 0.
+      else:
+         Qin = QRunoff[t-1,ioutq[n]]   + QBaseflow[t-1,ioutq[n]]
 
-      Qin,Qout,Qdif = '{:10.1f}'.format(Qin), '{:10.1f}'.format(Qout), '{:6.1f}'.format(Qdif)
+      # Runoff and Baseflow
+      if(t == 0):
+         Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]
+         Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]]
+      elif(t == 1):
+         Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   + 0.328619*Runoff[t-1,irlat[n],irlon[n]]
+         Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] + 0.328619*Baseflow[t-1,irlat[n],irlon[n]]
+      elif(t == 2):
+         Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   + 0.328619*Runoff[t-1,irlat[n],irlon[n]]   + 0.036218*Runoff[t-2,irlat[n],irlon[n]]
+         Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] + 0.328619*Baseflow[t-1,irlat[n],irlon[n]] + 0.036218*Baseflow[t-2,irlat[n],irlon[n]]
+      else:
+         Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   + 0.328619*Runoff[t-1,irlat[n],irlon[n]]   + 0.036218*Runoff[t-2,irlat[n],irlon[n]]   + 0.003185*Runoff[t-3,irlat[n],irlon[n]]
+         Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] + 0.328619*Baseflow[t-1,irlat[n],irlon[n]] + 0.036218*Baseflow[t-2,irlat[n],irlon[n]] + 0.003185*Baseflow[t-3,irlat[n],irlon[n]]
+
+
+      Qtest = Qout - Qrun - Qbas
+
+      Qout,Qin,Qrun,Qbas = '{:10.1f}'.format(Qout), '{:10.1f}'.format(Qin), '{:10.1f}'.format(Qrun), '{:10.1f}'.format(Qbas)
+      Qtest = '{:10.1f}'.format(Qtest)
+      
+      # Ratio of melted water
+      myRatio = Ratio[t,irlat[n],irlon[n]]
+      myRatio = '{:10.4f}'.format(myRatio)
 
       # Area, Depth, Width
       mydepth,mywidth  = Depth[ioutq],Width[ioutq]
@@ -204,10 +289,9 @@ for t in range(len(stime)):
       tstep = '{:5d}'.format(t+1)
       nnode = '{:5d}'.format(mynode)
 
-      ofic.write(str(tstep)+str(nnode)+str(Qin)+str(Qout)+str(Qdif)+str(mydepth)+str(mywidth)+str(Vel)+"     ")
+      ofic.write(str(tstep)+str(nnode)+str(Qout)+str(Qrun)+str(Qbas)+str(myRatio)+str(mydepth)+str(mywidth)+str(Vel)+" ")
 
 ofic.close()
-
 ############# End of Write Flow forcing file
 #################################################
 #################################################
@@ -233,6 +317,7 @@ for t in range(len(stime)):
          ihlon.append(ielon)
 
       AirOut   = AirTemp[t,ihlat[n],ihlon[n]]
+      AirAvg   = AirYear[t,ihlat[n],ihlon[n]]
       SoilOut  = SoilTemp[t,ihlat[n],ihlon[n]]
       VPOut    = VapPress[t,ihlat[n],ihlon[n]]
       ShortOut = Short[t,ihlat[n],ihlon[n]]
@@ -240,11 +325,10 @@ for t in range(len(stime)):
       DensOut  = Density[t,ihlat[n],ihlon[n]]
       PressOut = Press[t,ihlat[n],ihlon[n]]
       WindOut  = Wind[t,ihlat[n],ihlon[n]]
-      
-      #VPOut,PressOut   = VPOut*10, PressOut*10
-      #ShortOut,LongOut = ShortOut * 0.238845897e-3, LongOut * 0.238845897e-3
+
 
       AirOut   = '{:6.1f}'.format(AirOut)
+      AirAvg   = '{:6.1f}'.format(AirAvg)
       SoilOut  = '{:6.1f}'.format(SoilOut)
       VPOut    = '{:6.1f}'.format(VPOut)
       ShortOut = '{:7.4f}'.format(ShortOut)
@@ -254,9 +338,7 @@ for t in range(len(stime)):
       WindOut  = '{:5.1f}'.format(WindOut)
       
       nnode = '{:5d}'.format(mynode)
-      ofic.write(str(nnode)+str(AirOut)+str(SoilOut)+str(VPOut)+str(ShortOut)+str(LongOut)+str(DensOut)+str(PressOut)+str(WindOut)+"     ")
-      #ofic.write(str(nnode)+str(AirOut)+str(VPOut)+str(ShortOut)+str(LongOut)+str(DensOut)+str(PressOut)+str(WindOut)+" ")
-
+      ofic.write(str(nnode)+str(AirOut)+str(AirAvg)+str(SoilOut)+str(VPOut)+str(ShortOut)+str(LongOut)+str(DensOut)+str(PressOut)+str(WindOut)+"    ")
 ofic.close()
 ############ End of Write Heat forcing file
 ################################################

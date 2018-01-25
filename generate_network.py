@@ -254,7 +254,7 @@ while remain_stream > 0:
 
 ################################################
 ################################################
-############ Go trhough the all network to reorder it
+############ Go through the all network to reorder it
 stream_n0_2write = np.zeros(nhead)
 node_n0_2write   = np.zeros(ncells+nhead-1, dtype=int)
 node_st_2write   = np.zeros(ncells+nhead-1, dtype=int)
@@ -329,7 +329,7 @@ for lv in range(len(lorder_stream)-1,-1,-1):
       Total_length = sum(Length[mystream])
 
       f.write(lmystream.rjust(5)+" Headwaters"+str(n0_stream[0]).rjust(4)+" TribCell"+str(trib_cell[0]).rjust(6)+"  Headwaters"+str(n0_contri).rjust(8)+"R.M. =".rjust(15)+str(format(Total_length, "5.2f")).rjust(10)+"\n")
-      f.write("   23.00    12.10   0.2500     0.50   0.1000\n")
+      f.write("   23.00    12.10   0.2500     0.5   0.1000\n")
 
       myLength = Total_length
       for nd in mystream[0:istart+1]:

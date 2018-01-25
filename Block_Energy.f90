@@ -14,7 +14,11 @@ module Block_Energy
 !
     real, dimension(:), allocatable::dbt
 !
-!   Soil temperature (vertical average), deg. C
+!   Annual Air temperature at surface, deg. C
+!
+    real, dimension(:), allocatable::tavg
+!
+!   Soil temperature (bottom layeri of VIC), deg. C
 !
     real, dimension(:), allocatable::tsoil
 !  
