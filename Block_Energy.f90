@@ -39,9 +39,9 @@ module Block_Energy
 
 !   Some important constants
 !
-      real             :: lvp,rb,rho
-      real,parameter   :: evap_coeff=1.5e-9 !Lake Hefner coefficient, 1/meters
-      real,parameter   :: pf=0.640,pi=3.14159
-      real,parameter   :: rfac=304.8 !rho/Cp kg/meter**3/Kilocalories/kg/Deg K       
+      real,parameter   :: Boltzmann = 5.67e-8  ! Stefan-Boltzmann constant (W.m**-2.K**-4)
+      real,parameter   :: rho = 1000           ! Water density (kg.m**-3)
+      real,parameter   :: Cp  = 4.187E+3       ! Specific heat of water J.kg**-1.degC**-1
+      real,parameter   :: gam = 0.655          ! Psychrometric constant (hPa.degC**-1)
 !
 end module Block_Energy  

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import math
 import numpy as np
-from netCDF4 import Dataset  #, date2num, date2index, num2date
-#import time
+from netCDF4 import Dataset
+import configparser
+Config = configparser.ConfigParser()
 
 # Set arrays for column/row moves using numbers 1-8
 # from the direction file
@@ -19,23 +21,40 @@ print("")
 
 ################################################
 ################################################
+############ Open an read configuration file
+cfg_file = str(sys.argv[1])
+
+Config.read(cfg_file)
+gpath       = Config.get('global', 'dir')
+domain      = Config.get('global', 'domain')
+
+ppath       = Config.get('parameters', 'dir')
+direction   = Config.get('parameters', 'direction')
+pour_points = Config.get('parameters', 'pour_points')
+
+vpath    = Config.get('vic_output', 'dir')
+energy   = Config.get('vic_output', 'vic_output')
+
+rpath    = Config.get('rvic_output', 'dir')
+runoff   = Config.get('rvic_output', 'runoff')
+baseflow = Config.get('rvic_output', 'baseflow')
+
+opath    = Config.get('rbm_forcings', 'dir')
+network  = Config.get('rbm_forcings', 'network')
+fflow    = Config.get('rbm_forcings', 'flow')
+fheat    = Config.get('rbm_forcings', 'heat')
+############ End of Open an read configuration file
+################################################
+################################################
+
+################################################
+################################################
 ############ Open an read files
-#ipath = "/home/programmer_analyst/Workspace/rbm/"  # On my laptop
-iparam = "/storage/home/gdayon/Workspace/rbm/" # On lynx
-iforcs = "/storage/home/gdayon/hydro/BAKER/" # On lynx
-opath  = "/storage/home/gdayon/hydro/RBM-PCIC/" # On lynx
-
-### Output files
-oflow = opath+"Baker.DA_flow_TG"
-oheat = opath+"Baker.DA_heat_TG"
-
 ### Parameters
-fic   = iparam+"rvic.parameters_baker_v2.nc"        # Fraser file
-pfic  = Dataset(fic)
+pfic  = Dataset(ppath+direction)
 
 # Velocity
 Velocity = np.array(pfic.variables['velocity'])
-Velocity = Velocity * 3.2808398950131 # meters.s-1 to feet.s-1
 ncells   = np.count_nonzero(~np.isnan(Velocity)) # Number of active cells
 
 # Read the Velocity grid
@@ -43,37 +62,43 @@ vlat     = pfic.variables['lat']
 vlon     = pfic.variables['lon']
 
 ### Drainage Area
-fic   = iparam+"FULL.rvic.prm.BAKER.20171106.nc"
-afic  = Dataset(fic)
+afic  = Dataset(ppath+pour_points)
+UH    = np.array(afic.variables['unit_hydrograph']) # Dims = (timesteps=100, sources, tracers=1)
+
+outlet_number = np.array(afic.variables['outlet_number'])
+source2outlet_ind = np.array(afic.variables['source2outlet_ind'])
+
+outlet_lat = np.array(afic.variables['outlet_lat'])
+outlet_lon = np.array(afic.variables['outlet_lon'])
+
+source_lat = np.array(afic.variables['source_lat'])
+source_lon = np.array(afic.variables['source_lon'])
+
 Area  = np.array(afic.variables['outlet_upstream_area']) # Same lat/lon as Streamflow
 Area  = Area / 1e6 # Convert from m2 to km2
 Depth = 0.93 * Area**0.490  # From Yearsley 2012 (in m)
 Width = 0.08 * Area**0.396  # From Yearsley 2012 (in m)
-Depth,Width = Depth * 3.2808398950131, Width * 3.2808398950131 # meters to feet
 
 ###### Forcings water
 ### Streamflow from Runoff
-fic   = iforcs+"flow_runoff/hist/BAKER.rvic.h0a.2006-01-01.nc"
-wfic  = Dataset(fic)
-
+wfic    = Dataset(rpath+runoff)
 QRunoff = np.array(wfic.variables['streamflow']) # In mm.day-1
-QRunoff = QRunoff * 35.3146665722226 # meters3.s-1 to feet3.s-1
 stime   = np.array(wfic.variables['time'])
 slat    = np.array(wfic.variables['lat'])
 slon    = np.array(wfic.variables['lon'])
 wfic.close()
 
 ### Streamflow from Baseflow
-fic   = iforcs+"flow_baseflow/hist/BAKER.rvic.h0a.2006-01-01.nc"
-wfic  = Dataset(fic)
-
+wfic      = Dataset(rpath+baseflow)
 QBaseflow = np.array(wfic.variables['streamflow'])
-QBaseflow = QBaseflow * 35.3146665722226 # meters3.s-1 to feet3.s-1
 wfic.close()
 
+#wfic      = Dataset("/storage/home/gdayon/hydro/STELL/flow/hist/STELL.rvic.h0a.2006-01-01.nc")
+#QTest     = np.array(wfic.variables['streamflow'])
+#wfic.close()
+
 ###### Forcings energy
-fic   = iforcs+"flux/results.nc"
-efic  = Dataset(fic)
+efic  = Dataset(vpath+energy)
 
 # AirTemp, VapPress, Short, Long etc...
 AirTemp    = np.array(efic.variables['AIR_TEMP'])
@@ -89,8 +114,7 @@ etime      = efic.variables['time']
 elat       = np.array(efic.variables['lat'])
 elon       = np.array(efic.variables['lon'])
 
-VapPress    = VapPress * 10
-Short, Long = Short * 0.238845897e-3, Long * 0.238845897e-3 # W.m-2 to Kcal.s-1.m-2
+VapPress    = VapPress * 10 # kPa to hPa
 
 SoilTemp[ SoilTemp == 1e+20 ] = np.nan
 SoilTemp = SoilTemp[:,2,:,:]
@@ -98,11 +122,10 @@ SoilTemp = SoilTemp[:,2,:,:]
 ###### Runoff and Baseflow
 Runoff     = np.array(efic.variables['RUNOFF'])
 Baseflow   = np.array(efic.variables['BASEFLOW'])
-Snow_melt  = np.array(efic.variables['SNOW_MELT'])
-Snow_melt  = Snow_melt / 1000 # mm to meters
+Runoff[   Runoff > 1e+19]   = np.nan
+Baseflow[ Baseflow > 1e+19] = np.nan
 
-fic        = iforcs+"rvic.domain_fraser_v2.nc"  # Fraser file
-dfic       = Dataset(fic)
+dfic       = Dataset(gpath+domain)
 GridArea   = np.array(dfic.variables['area']) # In m2
 glat       = np.array(dfic.variables['lat'])
 glon       = np.array(dfic.variables['lon'])
@@ -114,11 +137,6 @@ myGrid     = myGrid[:, ilon]
 
 Runoff     = Runoff    * 1e-3 * myGrid / 86400 # In meters3.s-1
 Baseflow   = Baseflow  * 1e-3 * myGrid / 86400 # In meters3.s-1
-Snow_melt  = Snow_melt * 1e-3 * myGrid / 86400 # In meters3.s-1
-
-Runoff     = Runoff    * 35.3146665722226 # meters3.s-1 to feet3.s-1
-Baseflow   = Baseflow  * 35.3146665722226 # meters3.s-1 to feet3.s-1
-Snow_melt  = Snow_melt * 35.3146665722226 # meters3.s-1 to feet3.s-1
 
 ## Compute the Annual temperature
 navg    = 365
@@ -134,8 +152,7 @@ for i in range(ndays):
       AirYear[i,:,:] = np.nanmean(AirTemp[ i-round(navg/2):i+round(navg/2)+1,:,:], axis = 0)
 
 ### Network
-fic   = opath+"Baker_Network"
-nfic  = open(fic, 'r')
+nfic  = open(opath+network, 'r')
 
 # The node to write with their lat/lon
 allNode, allLat, allLon = [], [], []
@@ -153,7 +170,7 @@ for lines in nfic:
          nlon.append(float(data[9]))
 
 # Find the Headwaters, Outlet and Contributing nodes
-nfic  = open(fic, 'r')
+nfic  = open(opath+network, 'r')
 lines = nfic.readlines()
 HeadCell = [] # Will have nheadwater (= nstream) values at the end
 OutCell  = []
@@ -198,9 +215,10 @@ ivlat = []   # Indice for velocity
 ivlon = []   # Indice for velocity
 irlat = []   # Indice for Runoff and Baseflow
 irlon = []   # Indice for Runoff and Baseflow
+myUH  = []   # ...
 
 print("Write Flow forcing file")
-ofic = open(oflow, "w")
+ofic = open(opath+fflow, "w")
 for t in range(len(stime)):
    #print("Flow forcings file t:",t)
    for n,mynode,mylat,mylon in zip(range(nnodes),Node,nlat,nlon):
@@ -224,6 +242,21 @@ for t in range(len(stime)):
          new_irlon = list(elon).index(mylon)
          irlat.append(new_irlat)
          irlon.append(new_irlon)
+         
+         # Unit Hydrograph of the cell
+         outlet_ilat = np.isin(outlet_lat, mylat)
+         outlet_ilon = np.isin(outlet_lon, mylon)
+         myoutlet = outlet_number[np.where(outlet_ilat & outlet_ilon)[0]] # The outlet we are working with
+
+         sources  = np.isin(source2outlet_ind, myoutlet) # All source that contribute to the outlet
+         isource  = np.where(sources)[0]
+
+         sources_ilat = np.isin(source_lat[isource], mylat) # Source cell with same Lat/Lon as outlet
+         sources_ilon = np.isin(source_lon[isource], mylon)
+         iUH          = np.where(sources_ilat & sources_ilon)[0]
+
+         myUH.append(UH[0,iUH,0][0]) # Append to the list of UH coef.
+
 
          if mynode in HeadCell: # We have a headwater : Qin = 0.
             ... # Do nothing, Qin = 0.
@@ -247,40 +280,44 @@ for t in range(len(stime)):
                new_sii  = np.where(nolat & nolon)[0]
                iinq[n].append(new_sii[0])
 
-      Qout = QRunoff[t,ioutq[n]]       + QBaseflow[t,ioutq[n]]
-         
-      if(t == 0):
-         Qin = 0.
-      else:
-         Qin = QRunoff[t-1,ioutq[n]]   + QBaseflow[t-1,ioutq[n]]
+      Qout = QRunoff[t,ioutq[n]] + QBaseflow[t,ioutq[n]]
+      #Qout = QTest[t,ioutq[n]]
+
+      #if(t == 0):
+      #Qin = QRunoff[t,iinq[n]] + QBaseflow[t,iinq[n]]
+      #else:
+         #Qin = QRunoff[t-1,ioutq[n]] + QBaseflow[t-1,ioutq[n]]
 
       # Runoff and Baseflow
-      if(t == 0):
-         Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]
-         Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]]
-      elif(t == 1):
-         Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   + 0.328619*Runoff[t-1,irlat[n],irlon[n]]
-         Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] + 0.328619*Baseflow[t-1,irlat[n],irlon[n]]
-      elif(t == 2):
-         Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   + 0.328619*Runoff[t-1,irlat[n],irlon[n]]   + 0.036218*Runoff[t-2,irlat[n],irlon[n]]
-         Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] + 0.328619*Baseflow[t-1,irlat[n],irlon[n]] + 0.036218*Baseflow[t-2,irlat[n],irlon[n]]
-      else:
-         Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   + 0.328619*Runoff[t-1,irlat[n],irlon[n]]   + 0.036218*Runoff[t-2,irlat[n],irlon[n]]   + 0.003185*Runoff[t-3,irlat[n],irlon[n]]
-         Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] + 0.328619*Baseflow[t-1,irlat[n],irlon[n]] + 0.036218*Baseflow[t-2,irlat[n],irlon[n]] + 0.003185*Baseflow[t-3,irlat[n],irlon[n]]
+      #if(t == 0):
+         #Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]
+         #Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]]
+      #elif(t == 1):
+         #Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   #+ 0.328619*Runoff[t-1,irlat[n],irlon[n]]
+         #Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] #+ 0.328619*Baseflow[t-1,irlat[n],irlon[n]]
+      #elif(t == 2):
+         #Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   #+ 0.328619*Runoff[t-1,irlat[n],irlon[n]]   + 0.036218*Runoff[t-2,irlat[n],irlon[n]]
+         #Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] #+ 0.328619*Baseflow[t-1,irlat[n],irlon[n]] + 0.036218*Baseflow[t-2,irlat[n],irlon[n]]
+      #else:
+         #Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   #+ 0.328619*Runoff[t-1,irlat[n],irlon[n]]   + 0.036218*Runoff[t-2,irlat[n],irlon[n]]   + 0.003185*Runoff[t-3,irlat[n],irlon[n]]
+         #Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] #+ 0.328619*Baseflow[t-1,irlat[n],irlon[n]] + 0.036218*Baseflow[t-2,irlat[n],irlon[n]] + 0.003185*Baseflow[t-3,irlat[n],irlon[n]]
+         
+      Qrun = myUH[n]*Runoff[t,irlat[n],irlon[n]]
+      Qbas = myUH[n]*Baseflow[t,irlat[n],irlon[n]]
 
+      Test = Qout - Qrun - Qbas
+      Test = '{:10.5f}'.format(Test)
 
-      Qtest = Qout - Qrun - Qbas
-
-      Qout,Qin,Qrun,Qbas = '{:10.1f}'.format(Qout), '{:10.1f}'.format(Qin), '{:10.1f}'.format(Qrun), '{:10.1f}'.format(Qbas)
-      Qtest = '{:10.1f}'.format(Qtest)
+      Qout,Qrun,Qbas = '{:10.5f}'.format(Qout), '{:10.5f}'.format(Qrun), '{:10.5f}'.format(Qbas)
       
       # Ratio of melted water
       myRatio = Ratio[t,irlat[n],irlon[n]]
-      myRatio = '{:10.4f}'.format(myRatio)
+      myRatio = '{:10.5f}'.format(myRatio)
 
       # Area, Depth, Width
-      mydepth,mywidth  = Depth[ioutq],Width[ioutq]
-      mydepth,mywidth  = '{:6.1f}'.format(mydepth[0]), '{:7.1f}'.format(mywidth[0])
+      #mydepth,mywidth  = Depth[ioutq],Width[ioutq] # To correct, see below
+      mydepth,mywidth  = Depth[ioutq[n]],Width[ioutq[n]]
+      mydepth,mywidth  = '{:6.1f}'.format(mydepth), '{:7.1f}'.format(mywidth)
 
       # Velocity
       Vel   = Velocity[ivlat[n],ivlon[n]]
@@ -303,7 +340,7 @@ ihlat  = []   # Lat indice for energy
 ihlon  = []   # Lon indice for energy
 
 print("Write Heat forcing file")
-ofic = open(oheat, "w")
+ofic = open(opath+fheat, "w")
 for t in range(len(stime)):
    #print("Heat forcings file t:",t)
    for n,mynode,mylat,mylon in zip(range(len(allNode)),allNode,allLat,allLon):
@@ -331,14 +368,15 @@ for t in range(len(stime)):
       AirAvg   = '{:6.1f}'.format(AirAvg)
       SoilOut  = '{:6.1f}'.format(SoilOut)
       VPOut    = '{:6.1f}'.format(VPOut)
-      ShortOut = '{:7.4f}'.format(ShortOut)
-      LongOut  = '{:7.4f}'.format(LongOut)
+      ShortOut = '{:10.4f}'.format(ShortOut)
+      LongOut  = '{:10.4f}'.format(LongOut)
       DensOut  = '{:6.3f}'.format(DensOut)
       PressOut = '{:7.1f}'.format(PressOut)
       WindOut  = '{:5.1f}'.format(WindOut)
       
       nnode = '{:5d}'.format(mynode)
-      ofic.write(str(nnode)+str(AirOut)+str(AirAvg)+str(SoilOut)+str(VPOut)+str(ShortOut)+str(LongOut)+str(DensOut)+str(PressOut)+str(WindOut)+"    ")
+      
+      ofic.write(str(nnode)+str(AirOut)+str(AirAvg)+str(SoilOut)+str(VPOut)+str(ShortOut)+str(LongOut)+str(DensOut)+str(PressOut)+str(WindOut)+"   ")
 ofic.close()
 ############ End of Write Heat forcing file
 ################################################

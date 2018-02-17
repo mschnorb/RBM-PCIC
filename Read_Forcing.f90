@@ -7,35 +7,34 @@ USE Block_Network
 IMPLICIT NONE
 !
 integer :: nc,ncell,nnd,no_flow,no_heat,nr,nrec_flow,nrec_heat
-real    :: Q_avg,Q_dmmy
+real    :: Q_avg,Q_dmmy,rho_dmmy
 
+no_flow = 0
+no_heat = 0
 
-no_flow=0
-no_heat=0
-do nr=1,nreach
-  do nc=1,no_cells(nr)-1
+do nr=1,nreach ! Loop over reach in the network
+  do nc=1,no_cells(nr)-1 ! Loop over cells in the reach
     no_flow=no_flow+1
     no_heat=no_heat+1
-!
+
     nrec_flow=flow_cells*(ndays-1)+no_flow
     nrec_heat=heat_cells*(ndays-1)+no_heat
-!
-    read(35,'(2i5,3f10.1,f10.4,f6.1,f7.1,f6.2)' &
+
+    read(35,'(2i5,4f10.5,f6.1,f7.1,f6.2)' &
            ,rec=nrec_flow) nnd,ncell &
            ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Ratio(no_heat) &  
            ,depth(no_heat),width(no_heat),u(no_heat)
 
-    Q_diff(no_heat) = 0. ! We will deal with that later.
-!
-!write(*,*) no_heat, Ratio(no_heat), Q_in(no_heat)
+    Q_diff(no_heat) = 0. ! We will deal with that later. If artificial lateral inflow.
+
     if(u(no_heat).lt.0.01) u(no_heat)=0.01
     if(ncell.ne.no_heat) write(*,*) 'Flow file error',ncell,no_heat 
-!
-    read(36,'(i5,4f6.1,2f7.4,f6.3,f7.1,f5.1)' &
+
+    read(36,'(i5,4f6.1,2f10.4,f6.3,f7.1,f5.1)' &
            ,rec=nrec_heat) ncell &
            ,dbt(no_heat),tavg(no_heat),tsoil(no_heat) &
            ,ea(no_heat),Q_ns(no_heat),Q_na(no_heat) &
-           ,rho,press(no_heat),wind(no_heat)
+           ,rho_dmmy,press(no_heat),wind(no_heat)
 
 !   
   if(ncell.ne.no_heat) write(*,*) 'Heat file error',ncell,no_heat
@@ -65,14 +64,19 @@ do nr=1,nreach
 !
 !       Read the meteorology for the last cell, but not the flow
 !
-  no_heat=no_heat+1 
+  no_heat = no_heat + 1
+
   Q_out(no_heat)=Q_out(no_heat-1)
-  Q_trib(nr)=Q_out(no_heat)    
-  nrec_heat=heat_cells*(ndays-1)+no_heat
+
+  Q_run(no_heat) = Q_run(no_heat-1)
+  Q_bas(no_heat) = Q_bas(no_heat-1)
+
+  Q_trib(nr) = Q_out(no_heat)
+  nrec_heat  = heat_cells*(ndays-1) + no_heat
   read(36,'(i5,3f6.1,2f7.4,f6.3,f7.1,f5.1)' &
          ,rec=nrec_heat) ncell &
          ,dbt(no_heat),tsoil(no_heat),ea(no_heat) &   
-         ,Q_ns(no_heat),Q_na(no_heat),rho &
+         ,Q_ns(no_heat),Q_na(no_heat),rho_dmmy &
          ,press(no_heat),wind(no_heat)
 !
 !  The flow and hydraulics for the last cell has to be 
@@ -80,11 +84,11 @@ do nr=1,nreach
 !  take the values of the segment to which it is tributary
 !
 
-  Q_in(no_heat)=Q_out(no_heat-1)
-  u(no_heat)=u(no_heat-1)
-  depth(no_heat)=depth(no_heat-1)
-  width(no_heat)=width(no_heat-1)
-  dt(no_heat)=dx(ncell)/u(no_heat)
+  Q_in(no_heat)   = Q_out(no_heat-1)
+  u(no_heat)      = u(no_heat-1)
+  depth(no_heat)  = depth(no_heat-1)
+  width(no_heat)  = width(no_heat-1)
+  dt(no_heat)     = dx(ncell)/u(no_heat)
 end do ! End of loop on reach
 
 !

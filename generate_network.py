@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import numpy as np
 from netCDF4 import Dataset  #, date2num, date2index, num2date
+import configparser
+Config = configparser.ConfigParser()
 
 # Set arrays for column/row moves using numbers 1-8
 # from the direction file
@@ -16,13 +19,27 @@ print("")
 
 ################################################
 ################################################
-############ Open an read direction file
-ipath = "/storage/home/gdayon/Workspace/rbm/"       # On lynx
-ific  = ipath+"rvic.parameters_baker_v2.nc"       # Test file
-fic   = Dataset(ific)
+############ Open an read configuration file
+cfg_file = str(sys.argv[1])
 
-opath = "/storage/home/gdayon/hydro/RBM-PCIC/"       # On lynx
-ofic  = opath+"Baker_Network"
+Config.read(cfg_file)
+ipath  = Config.get('parameters', 'dir')
+ific   = Config.get('parameters', 'direction')
+
+opath  = Config.get('rbm_forcings', 'dir')
+ofic   = Config.get('rbm_forcings', 'network')
+fflow  = Config.get('rbm_forcings', 'flow')
+fheat  = Config.get('rbm_forcings', 'heat')
+dStart = Config.get('rbm_forcings', 'dStart')
+dEnd   = Config.get('rbm_forcings', 'dEnd')
+############ End of Open an read configuration file
+################################################
+################################################
+
+################################################
+################################################
+############ Open an read direction file
+fic   = Dataset(ipath+ific)
 
 # Flow direction
 Flow_dir = fic.variables['Flow_Direction']
@@ -50,6 +67,7 @@ if(lat[0] > lat[1]): # Check if lat is in ascending order
 ################################################
 ################################################
 
+
 ################################################
 ################################################
 ############ Define some array
@@ -74,7 +92,7 @@ cell_lon = np.reshape(lon2d[icells[0],icells[1]], ncells)
 # Length of active cells
 Length   = np.reshape(Flow_dis[icells[0],icells[1]], ncells)
 Length   = np.array(Length.tolist()[0])
-Length   = Length * 0.0006213712 # Meters to miles
+Length   = Length
 ############ End of Define some array
 ################################################
 ################################################
@@ -177,6 +195,7 @@ for nh in range(nhead):
 # The confluence of the main stream is the outlet
 conf_row[main_stream] = outlet_row
 conf_col[main_stream] = outlet_col
+nhead_incell[outlet_row,outlet_col] = nhead
 lorder_stream         = [[main_stream]] # The main stream order is 1. Push it in the list
 print("Main stream :",main_stream,"Lenght:",max_length)
 print("")
@@ -184,15 +203,15 @@ print("")
 ################################################
 ################################################
 
+
 ################################################
 ################################################
 ############ Stream level, confluence nodes
-remain_stream = nhead  # Init. (voir -1, a verifier)
-stream_order  = 1      # Init.
+remain_stream = nhead-1  # Init. (Maybe -1, to check)
+stream_order  = 1        # Init.
 while remain_stream > 0:
-   remain_stream -= 1
+   #remain_stream -= 1
    lorder_stream.append([])
-
    for nst in lorder_stream[stream_order-1]:
 
       start_row = conf_row[nst]
@@ -200,22 +219,24 @@ while remain_stream > 0:
       start_n0  = cell_n0[start_row, start_col]
       in0_inseg = np.where(stream_cells[nst] == start_n0)
 
-      mymainseg = stream_cells[nst][0:int(in0_inseg[0])]
+      if(stream_order == 1): # Add the outlet for the main stream, in case on substream join it here.
+         mymainseg = stream_cells[nst][0:int(in0_inseg[0])+1]
+      else:
+         mymainseg = stream_cells[nst][0:int(in0_inseg[0])]
+         
       nseg      = len(mymainseg)
 
       for ns in range(nseg-1,0,-1):
          n0 = mymainseg[ns]
          nr = cell_row[n0]
          nc = cell_col[n0]
-         
          nc_incell = ncell_incell[nr,nc] # Cells contributing to the actual cell
 
-         if( nc_incell > 1): # If true, we found a confluence !
+         if(nc_incell > 1): # If true, we found a confluence !
             myus_cell = mymainseg[ns-1]
 
             # Let's find the longest stream
             for new in (np.where(lcell_incell[n0] != myus_cell)[0] ): # Loop over stream different from the main
-
                us_cell = lcell_incell[n0][int(new)] # Cell upstream of the confluence
                us_row  = cell_row[us_cell]
                us_col  = cell_col[us_cell]
@@ -243,7 +264,6 @@ while remain_stream > 0:
                
                # Push the stream to the list
                lorder_stream[stream_order].append(new_branch)
-                  
                remain_stream -= 1
 
    # Look for the upper level streams
@@ -251,6 +271,7 @@ while remain_stream > 0:
 ############ Stream level, confluence nodes
 ################################################
 ################################################
+
 
 ################################################
 ################################################
@@ -260,20 +281,20 @@ node_n0_2write   = np.zeros(ncells+nhead-1, dtype=int)
 node_st_2write   = np.zeros(ncells+nhead-1, dtype=int)
 ist = 0
 ind = 0
-for lv in range(len(lorder_stream)-1,-1,-1):
 
+for lv in range(len(lorder_stream)-1,-1,-1):
    for st in lorder_stream[lv]:
       stream_n0_2write[ist] = st
       ist += 1
-      
+
       row = conf_row[st]
       col = conf_col[st]
       conf_cell = cell_n0[row,col]
-      
+
       mystream  = stream_cells[st]
       istart    = int(np.where(mystream == conf_cell)[0])
       mystream  = mystream[0:istart+1]
-      
+
       for nd in mystream[0:istart+1]:
          node_n0_2write[ind] = nd
          node_st_2write[ind] = st
@@ -282,16 +303,17 @@ for lv in range(len(lorder_stream)-1,-1,-1):
 ################################################
 ################################################
 
+
 ################################################
 ################################################
 ############ Write the Network file
-print(ofic)
-f = open(ofic, "w")
+print(opath+ofic)
+f = open(opath+ofic, "w")
 
 f.write("Networtk file for BAKER test case\n")
-f.write("Baker.DA_flow_TG\n") # Forcing files
-f.write("Baker.DA_heat_TG\n") # Forcing files
-f.write("19890101".rjust(10)+"20051231".rjust(10)+"1".rjust(10)+"\n") # Start - End dates / Timesteps
+f.write(fflow+"\n") # Forcing files
+f.write(fheat+"\n") # Forcing files
+f.write(dStart.rjust(10)+dEnd.rjust(10)+"1".rjust(10)+"\n") # Start - End dates / Timesteps
 f.write(str(nhead).rjust(10)+str(ncells-1).rjust(10)+str(ncells+nhead-1).rjust(10)+"FALSE".rjust(21)+"\n")
 
 for lv in range(len(lorder_stream)-1,-1,-1):
@@ -328,7 +350,7 @@ for lv in range(len(lorder_stream)-1,-1,-1):
       # Length of my stream (in km)
       Total_length = sum(Length[mystream])
 
-      f.write(lmystream.rjust(5)+" Headwaters"+str(n0_stream[0]).rjust(4)+" TribCell"+str(trib_cell[0]).rjust(6)+"  Headwaters"+str(n0_contri).rjust(8)+"R.M. =".rjust(15)+str(format(Total_length, "5.2f")).rjust(10)+"\n")
+      f.write(lmystream.rjust(5)+" Headwaters"+str(n0_stream[0]).rjust(4)+" TribCell"+str(trib_cell[0]).rjust(6)+"  Headwaters"+str(n0_contri).rjust(8)+"R.M. =".rjust(15)+str(format(Total_length, "15.2f")).rjust(10)+"\n")
       f.write("   23.00    12.10   0.2500     0.5   0.1000\n")
 
       myLength = Total_length
@@ -348,7 +370,7 @@ for lv in range(len(lorder_stream)-1,-1,-1):
          myLength = abs(myLength - Length[nd]) # In case it goes under zero because of truncation
 
          f.write("Node"+n0_cell.rjust(6)+" Row"+row.rjust(6)+" Column"+col.rjust(6)+"  Lat"+lat.rjust(9)+" Long"+lon.rjust(11)+" R.M. =")
-         f.write(str(format(myLength, "5.2f")).rjust(10))
+         f.write(str(format(myLength, "15.2f")).rjust(10))
          f.write(str(2).rjust(5)+"\n")
 
 f.close()

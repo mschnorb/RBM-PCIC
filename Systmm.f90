@@ -21,7 +21,7 @@ integer              :: njb,npndx,ntrp
 integer, dimension(2):: ndltp=(/-1,-2/)
 integer, dimension(2):: nterp=(/2,3/)
 
-real             :: dt_calc,dt_total,hpd,q_dot,q_surf,z
+real             :: dt_calc,dt_total,hpd,q_dot,q_surf,z,w,x_calc
 real             :: Q_dstrb,Q_inflow,Q_outflow,Q_ratio,Q_trb,Q_trb_sum,Q_base,Q_runoff,myratio
 real             :: T_dstrb,T_dstrb_load,T_trb_load,T_base_load, T_runoff_load
 real             :: rminsmooth
@@ -93,6 +93,7 @@ do nyear=start_year,end_year
 
    ! Day loop starts
    do nd=1,nd_year
+
       year=nyear
       xd=nd
       xd_year=nd_year
@@ -105,13 +106,14 @@ do nyear=start_year,end_year
          xdd  = ndd
          time = year + (xd + (xdd-0.5)*hpd) / xd_year 
 
-
          ! Read the hydrologic and meteorologic forcings
          call READ_FORCING
 
          !!! Begin reach computations
          ! Begin cycling through the reaches
-         do nr=1,nreach
+         do nr=1,nreach ! nr = #reach
+!             if(time.eq.1989.0042) write(*,*) 'Begin of #reach in a stream loop'
+
             nc_head = segment_cell(nr,1)
             
             !!! Mohseni relation for T_head
@@ -141,6 +143,7 @@ do nyear=start_year,end_year
 
             ! Begin cell computational loop
             do ns=1,no_celm(nr)
+!                if(time.eq.1989.0042) write(*,*) '   Begin of ns loop'
 
                DONE = .FALSE.
   
@@ -164,9 +167,8 @@ do nyear=start_year,end_year
                if(nx_head.eq.0) then
                   T_0 = T_head(nr)
                else 
-
-               ! Interpolation at the upstream or downstream boundary
-               if(nseg .eq. 1 .or. nseg .eq. no_celm(nr)) npndx=1
+                  ! Interpolation at the upstream or downstream boundary
+                  if(nseg .eq. 1 .or. nseg .eq. no_celm(nr)) npndx=1
 
                   do ntrp = nterp(npndx),1,-1
                      npart    = nseg+ntrp+ndltp(npndx)
@@ -178,15 +180,18 @@ do nyear=start_year,end_year
                   x = x_part(nx_s)
 
                   ! Call the interpolation function
-                  T_0=tntrp(xa,ta,x,nterp(npndx))
-
+                  T_0 = tntrp(xa,ta,x,nterp(npndx))
                end if ! End of if nx_head
 
                nncell = segment_cell(nr,nstrt_elm(ns))
 
-               ! Initialize inflow
+               ! Initialize inflow, outflow, runoff and baseflow (usefull ?)
                Q_inflow = Q_in(nncell)
                Q_outflow = Q_out(nncell)
+               
+               Q_runoff = Q_run(nncell)
+               Q_base   = Q_bas(nncell)
+               
                myratio = Ratio(nncell)
 
                ! Set NCELL0 for purposes of tributary input
@@ -194,46 +199,46 @@ do nyear=start_year,end_year
                dt_total = 0.0
 
                do nm=no_dt(ns),1,-1
+!                   if(time.eq.1989.0042) write(*,*) '     Begin of #dt loop'
                   dt_calc = dt_part(nm)
-                  z = depth(nncell)
+                  x_calc  = x_part(nm)
                   
-                  ! Compute some energy variables
+                  z = depth(nncell)
+                  w = width(nncell)
+                  
+                  ! Compute the net heat flux
                   call energy(T_0,q_surf,nncell)
 
-                  q_dot = (q_surf/(z*rfac)) !* 0.5
-                  T_0   = T_0 + q_dot*dt_calc
-                  
-                  ! T_0 minimum value is 0.0 (ice)
-                   if(T_0.lt.0.0) T_0=0.0
+! Original version of RBM
+!                   q_dot = (q_surf/(z*rho*Cp))
+!                   T_0   = T_0 + q_dot*dt_calc
 
-                  !!!! Add distributed flows
-                  T_dstrb_load  = 0.0
-                  Q_dstrb       = Q_diff(nncell)
-                  
+                  !!!! Read inflow and outflow (assumed equal for the moment)
+                  Q_inflow      = Q_out(nncell)
+                  Q_outflow     = Q_out(nncell)
+
                   !!!! Add baseflow
                   T_base        = tsoil(nncell)
                   if(T_base .le. 0.) T_base = 0.
                   Q_base        = Q_bas(nncell)
 !                  T_base_load   = Q_base*(1-myratio)*T_base + Q_base*myratio*0.0 - Q_base*T_0
-                  T_base_load   = Q_base*T_base - Q_base*T_0
+                  T_base_load   = Q_base*T_base
                   
                   !!!! Add runflow
                   T_runoff      = dbt(nncell)
                   if(T_runoff .le. 0.) T_runoff = 0.
                   Q_runoff      = Q_run(nncell)
 !                  T_runoff_load = Q_runoff*(1-myratio)*T_runoff + Q_base*myratio*0.0 - Q_runoff*T_0
-                  T_runoff_load = Q_runoff*T_runoff - Q_runoff*T_0
+                  T_runoff_load = Q_runoff*T_runoff
                   
-                  ! Temperature of distributed inflow assumed = 10.0 deg C
+                  !!!! Add distributed flows. Temperature is assumed = 10. degC
                   if(Q_dstrb.gt.0.001) then
-                     T_dstrb  = 10.0
+                     T_dstrb    = 10.0
                   else
-                     T_dstrb  = 10.0
+                     T_dstrb    = 10.0
                   end if
+                  Q_dstrb       = Q_diff(nncell)
                   T_dstrb_load  = Q_dstrb*T_dstrb
-
-                  !!! Add Baseflow and Runoff
-                  T_dstrb_load  = T_dstrb_load + T_base_load  + T_runoff_load
 
                   !!! Look for a tributary.
                   ntribs = no_tribs(nncell)
@@ -241,40 +246,50 @@ do nyear=start_year,end_year
                   T_trb_load  = 0.0
                   
                   if(ntribs.gt.0 .and. .not.DONE) then
-                     do ntrb=1,ntribs
-                        nr_trib=trib(nncell,ntrb)
+                     do ntrb = 1,ntribs
+                        nr_trib = trib(nncell,ntrb)
                         
                         if(Q_trib(nr_trib).gt.0.0) then
                            Q_trb        = Q_trib(nr_trib)
                            Q_trb_sum    = Q_trb_sum + Q_trb
 
                            ! Update water temperature with tributary input
-                           T_trb_load   = (Q_trb*T_trib(nr_trib))       &
-                                          +  T_trb_load
+                           if( .not.isnan(T_trib(nr_trib)) ) then
+                              T_trb_load   = (Q_trb*T_trib(nr_trib))  &
+                                           +  T_trb_load
+                           end if
                         end if ! End of if on existence of tributary
 
                      end do ! End of loop on number of tributaries
-
                      DONE = .TRUE.
 
+                     ! Update Q_outflow
+                     Q_outflow = Q_inflow + Q_dstrb + Q_trb_sum
                   end if ! End of if on ntribs
-
-                  !  Update inflow and outflow
-                  Q_outflow = Q_inflow + Q_dstrb + Q_trb_sum
+                  
+                  !  Ratio (mostly when there are tributaries)
                   Q_ratio   = Q_inflow/Q_outflow
 
-                  ! Do the mass/energy balance
-                  T_0  = T_0*Q_ratio                            &
-                       + (T_dstrb_load + T_trb_load)/Q_outflow  &
-                       + q_dot*dt_calc
+! Original version of RBM
+!                   ! Do the mass/energy balance
+!                   T_0  = T_0*Q_ratio                            &
+!                        + (T_dstrb_load + T_trb_load)/Q_outflow  &
+!                        + q_dot*dt_calc
+
+                  !!! Quasi-original version (we consider Runoff and Baseflow contributions)
+                  T_0  = T_0*(Q_inflow - Q_runoff - Q_base)  / Q_outflow &
+                       + T_trb_load                          / Q_outflow &
+                       + T_runoff_load                       / Q_outflow &
+                       + T_base_load                         / Q_outflow &
+                       + q_surf / (rho*Cp*z*Q_outflow)
 
                   ! T_0 minimum value is 0.5 (double check ?!?)
-                   if (T_0.lt.0.) T_0 = 0.
+                  if (T_0.lt.0.) T_0 = 0.
 
                   ! Q_inflow becomes Q_outflow (for next time step ?)
                   Q_inflow = Q_outflow
-
-                  nseg   = nseg+1
+                  
+                  nseg   = nseg + 1
                   nncell = segment_cell(nr,nseg)
 
                   ! Reset tributary flag if this is a new cell
@@ -286,24 +301,22 @@ do nyear=start_year,end_year
 
                   ! ... ?
                   dt_total = dt_total + dt_calc
-
+!                   if(time.eq.1989.0042) write(*,*) ' ' 
                end do ! End of loop on nm=no_dt(ns),1,-1 (?!?)
 
-               ! New check on minimum T_0 value... 0.5 again
-                if (T_0.lt.0.) T_0 = 0.
-
                temp(nr,ns,n2) = T_0
-               T_trib(nr) = T_0
+               T_trib(nr)     = T_0
 
                !   Write all temperature output UW_JRY_11/08/2013
                !   The temperature is output at the beginning of the 
                !   reach.  It is, of course, possible to get output at
                !   other points by some additional code that keys on the
                !   value of ndelta (now a vector)(UW_JRY_11/08/2013)
-               !call WRITE(time,nd,nr,ncell,ns,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow)
-               call WRITE(time,nd,nr,ncell,ns,T_0,T_head(nr),dbt(ncell),Q_runoff,Q_base)
+!                call WRITE(time,nd,nr,ncell,ns,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
+               call WRITE(time,nd,nr,ncell,nncell,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
 
-            end do ! End of computational element loop (ns=1,no_celm(nr)) (segments ?)
+            end do ! End of computational element loop (ns=1,no_celm(nr))
+!             if(time.eq.1989.0042) write(*,'(A,2I3)') 'End of #reach in a stream loop : ', nr, no_celm(nr)
          end do ! End of reach loop
       
          ntmp = n1
@@ -317,8 +330,8 @@ do nyear=start_year,end_year
       end do ! End of weather period loop (NDD=1,NWPD)
    end do ! End of day loop (ND=1,365/366)
 end do ! End of year loop
-!
-!
+
+
 !     ******************************************************
 !                        return to rmain
 !     ******************************************************

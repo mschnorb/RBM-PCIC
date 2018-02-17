@@ -21,8 +21,6 @@ implicit none
     real :: nndlta
     real :: rmile0,rmile1,xwpd
 !
-    real,parameter   :: miles_to_ft=5280.
-!
 !   Mohseni parameters, if used
 !
 !
@@ -88,12 +86,12 @@ do nr=1,nreach
 !     the headwater number of the next higher order stream it enters, and
 !     the river mile of the headwaters.
 !
-  read(90,'(i5,11x,i4,10x,i5,15x,i5,15x,f10.0,i5)') no_cells(nr) &
+  read(90,'(i5,11x,i4,10x,i5,15x,i5,15x,f15.2,i5)') no_cells(nr) &
       ,head_name,trib_cell,main_stem,rmile0
 !
 ! Set boundary distance
 !
-      x_dist(nr,0)=miles_to_ft*rmile0
+      x_dist(nr,0)=rmile0
 !
 !     If this is reach that is tributary to cell TRIB_CELL, give it the
 !     pointer TRIB(TRIB_CELL) the index of this reach for further use.
@@ -135,7 +133,7 @@ do nr=1,nreach
 !     Variable ndelta read in here.  At present, number of elements
 !     is entered manually into the network file (UW_JRY_2011/03/15)
 !
-    read(90,'(5x,i5,5x,i5,8x,i5,6x,a8,6x,a10,7x,f10.0,f5.0)')  &
+    read(90,'(5x,i5,5x,i5,8x,i5,6x,a8,6x,a10,7x,f15.2,f5.0)')  &
               node,nrow,ncol,lat,long,rmile1,ndelta(ncell)
 !
 !    Set the number of segments of the default, if not specified
@@ -144,19 +142,20 @@ do nr=1,nreach
     if(first_cell) then
       first_cell=.false.
       head_cell(nr)=ncell
-      x_dist(nr,0)=miles_to_ft*rmile0
+      x_dist(nr,0)=rmile0
     end if
 !
 ! Added variable ndelta (UW_JRY_2011/03/15)
 !
-    dx(ncell)=miles_to_ft*(rmile0-rmile1)/ndelta(ncell)
+    dx(ncell)=(rmile0-rmile1)/ndelta(ncell)
     rmile0=rmile1
     nndlta=0
 200 continue
     nndlta=nndlta+1
     nseg=nseg+1
-    segment_cell(nr,nseg)=ncell
-    write(*,*) 'nndlta -- ',nr,nndlta,nseg,ncell,segment_cell(nr,nseg)
+    segment_cell(nr,nseg)  =ncell
+    segment_cell(nr,nseg+1)=ncell
+    write(*,*) 'nndlta --',nr,nndlta,nseg,ncell,segment_cell(nr,nseg),dx(ncell),rmile1
     x_dist(nr,nseg)=x_dist(nr,nseg-1)-dx(ncell)
 !
 !   Write Segment List for mapping to temperature output (UW_JRY_2008/11/19)
@@ -171,7 +170,7 @@ do nr=1,nreach
     if(nndlta.lt.ndelta(ncell)) go to 200  
     no_celm(nr)=nseg
     segment_cell(nr,nseg)=ncell
-    x_dist(nr,nseg)=miles_to_ft*rmile1
+    x_dist(nr,nseg)=rmile1
 !
 ! End of cell and segment loop
 !

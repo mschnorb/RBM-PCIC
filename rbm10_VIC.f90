@@ -80,9 +80,9 @@ param_file    = TRIM(inPrefix)//'_Parameters'
 spatial_file  = TRIM(outPrefix)//'.Spat'
 temp_file     = TRIM(outPrefix)//'.Temp'
 !
-write(*,*) 'Spatial file: ',spatial_file         
+write(*,*) 'Spatial file: ',spatial_file
 write(*,*) 'Network file    : ',net_file
-write(*,*) 'Parameter file  : ',param_file!
+write(*,*) 'Parameter file  : ',param_file
 write(*,*) 'Temperature file: ',temp_file
 !
 OPEN(UNIT=90,FILE=TRIM(net_file),STATUS='OLD')
@@ -100,8 +100,8 @@ open(unit=35,FILE=TRIM(flow_file) ,FORM='FORMATTED',ACCESS='DIRECT' ,RECL=70,STA
 read(90,'(A)') heat_file
 !
 !     Open file with meteorologic data
-!     
-open(unit=36,FILE=TRIM(heat_file) ,FORM='FORMATTED',ACCESS='DIRECT' ,RECL=65,STATUS='old')
+!
+open(unit=36,FILE=TRIM(heat_file) ,FORM='FORMATTED',ACCESS='DIRECT' ,RECL=70,STATUS='old')
 !
 !     Call systems programs to get started
 !
