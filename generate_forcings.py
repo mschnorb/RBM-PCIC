@@ -51,96 +51,95 @@ fheat    = Config.get('rbm_forcings', 'heat')
 ################################################
 ############ Open an read files
 ### Parameters
-pfic  = Dataset(ppath+direction)
+with Dataset(ppath+direction) as pfic:
+   # Velocity
+   Velocity = np.array(pfic.variables['velocity'])
+   ncells   = np.count_nonzero(~np.isnan(Velocity)) # Number of active cells
 
-# Velocity
-Velocity = np.array(pfic.variables['velocity'])
-ncells   = np.count_nonzero(~np.isnan(Velocity)) # Number of active cells
-
-# Read the Velocity grid
-vlat     = pfic.variables['lat']
-vlon     = pfic.variables['lon']
+   # Read the Velocity grid
+   vlat     = np.array(pfic.variables['lat'])
+   vlon     = np.array(pfic.variables['lon'])
 
 ### Drainage Area
-afic  = Dataset(ppath+pour_points)
-UH    = np.array(afic.variables['unit_hydrograph']) # Dims = (timesteps=100, sources, tracers=1)
+with Dataset(ppath+pour_points) as afic:
+   # Local Unit Hydrograph
+   UH    = np.array(afic.variables['unit_hydrograph']) # Dims = (timesteps=100, sources, tracers=1)
 
-outlet_number = np.array(afic.variables['outlet_number'])
-source2outlet_ind = np.array(afic.variables['source2outlet_ind'])
+   outlet_number = np.array(afic.variables['outlet_number'])
+   source2outlet_ind = np.array(afic.variables['source2outlet_ind'])
 
-outlet_lat = np.array(afic.variables['outlet_lat'])
-outlet_lon = np.array(afic.variables['outlet_lon'])
+   outlet_lat = np.array(afic.variables['outlet_lat'])
+   outlet_lon = np.array(afic.variables['outlet_lon'])
 
-source_lat = np.array(afic.variables['source_lat'])
-source_lon = np.array(afic.variables['source_lon'])
+   source_lat = np.array(afic.variables['source_lat'])
+   source_lon = np.array(afic.variables['source_lon'])
 
-Area  = np.array(afic.variables['outlet_upstream_area']) # Same lat/lon as Streamflow
-Area  = Area / 1e6 # Convert from m2 to km2
-Depth = 0.93 * Area**0.490  # From Yearsley 2012 (in m)
-Width = 0.08 * Area**0.396  # From Yearsley 2012 (in m)
+   # Watershed area
+   Area  = np.array(afic.variables['outlet_upstream_area']) # Same lat/lon as Streamflow
+   Area  = Area / 1e6 # Convert from m2 to km2
+   Depth = 0.93 * Area**0.490  # From Yearsley 2012 (in m)
+   Width = 0.08 * Area**0.396  # From Yearsley 2012 (in m)
 
 ###### Forcings water
 ### Streamflow from Runoff
-wfic    = Dataset(rpath+runoff)
-QRunoff = np.array(wfic.variables['streamflow']) # In mm.day-1
-stime   = np.array(wfic.variables['time'])
-slat    = np.array(wfic.variables['lat'])
-slon    = np.array(wfic.variables['lon'])
-wfic.close()
+with Dataset(rpath+runoff) as wfic:
+   QRunoff = np.array(wfic.variables['streamflow']) # In mm.day-1
+   stime   = np.array(wfic.variables['time'])
+   slat    = np.array(wfic.variables['lat'])
+   slon    = np.array(wfic.variables['lon'])
 
 ### Streamflow from Baseflow
-wfic      = Dataset(rpath+baseflow)
-QBaseflow = np.array(wfic.variables['streamflow'])
-wfic.close()
+with Dataset(rpath+baseflow) as wfic:
+   QBaseflow = np.array(wfic.variables['streamflow'])
 
 #wfic      = Dataset("/storage/home/gdayon/hydro/STELL/flow/hist/STELL.rvic.h0a.2006-01-01.nc")
 #QTest     = np.array(wfic.variables['streamflow'])
 #wfic.close()
 
-###### Forcings energy
-efic  = Dataset(vpath+energy)
+###### Forcings energy and local water fluxes
+with Dataset(vpath+energy) as efic:
+   # AirTemp, VapPress, Short, Long etc...
+   AirTemp    = np.array(efic.variables['AIR_TEMP'])
+   SoilTemp   = np.array(efic.variables['SOIL_TEMP'])
+   Ratio      = np.array(efic.variables['RATIO'])
+   VapPress   = np.array(efic.variables['VP'])
+   Short      = np.array(efic.variables['SHORTWAVE'])
+   Long       = np.array(efic.variables['LONGWAVE'])
+   Density    = np.array(efic.variables['DENSITY'])
+   Press      = np.array(efic.variables['PRESSURE'])
+   Wind       = np.array(efic.variables['WIND'])
+   elat       = np.array(efic.variables['lat'])
+   elon       = np.array(efic.variables['lon'])
+   etime      = efic.variables['time']
+   ndays   = len(etime)
 
-# AirTemp, VapPress, Short, Long etc...
-AirTemp    = np.array(efic.variables['AIR_TEMP'])
-SoilTemp   = np.array(efic.variables['SOIL_TEMP'])
-Ratio      = np.array(efic.variables['RATIO'])
-VapPress   = np.array(efic.variables['VP'])
-Short      = np.array(efic.variables['SHORTWAVE'])
-Long       = np.array(efic.variables['LONGWAVE'])
-Density    = np.array(efic.variables['DENSITY'])
-Press      = np.array(efic.variables['PRESSURE'])
-Wind       = np.array(efic.variables['WIND'])
-etime      = efic.variables['time']
-elat       = np.array(efic.variables['lat'])
-elon       = np.array(efic.variables['lon'])
+   VapPress    = VapPress * 10 # kPa to hPa
 
-VapPress    = VapPress * 10 # kPa to hPa
+   SoilTemp[ SoilTemp == 1e+20 ] = np.nan
+   SoilTemp = SoilTemp[:,2,:,:]
 
-SoilTemp[ SoilTemp == 1e+20 ] = np.nan
-SoilTemp = SoilTemp[:,2,:,:]
+   # Runoff and Baseflow
+   Runoff     = np.array(efic.variables['RUNOFF'])
+   Baseflow   = np.array(efic.variables['BASEFLOW'])
+   Runoff[   Runoff > 1e+19]   = np.nan
+   Baseflow[ Baseflow > 1e+19] = np.nan
 
-###### Runoff and Baseflow
-Runoff     = np.array(efic.variables['RUNOFF'])
-Baseflow   = np.array(efic.variables['BASEFLOW'])
-Runoff[   Runoff > 1e+19]   = np.nan
-Baseflow[ Baseflow > 1e+19] = np.nan
+### Grid Area to runoff and baseflow convertion
+with Dataset(gpath+domain) as dfic:
+   GridArea   = np.array(dfic.variables['area']) # In m2
+   glat       = np.array(dfic.variables['lat'])
+   glon       = np.array(dfic.variables['lon'])
 
-dfic       = Dataset(gpath+domain)
-GridArea   = np.array(dfic.variables['area']) # In m2
-glat       = np.array(dfic.variables['lat'])
-glon       = np.array(dfic.variables['lon'])
+   ilat = np.where( (min(elat)<=glat) & (glat<=max(elat)) )[0]
+   ilon = np.where( (min(elon)<=glon) & (glon<=max(elon)) )[0]
+   myGrid     = GridArea[ ilat, :]
+   myGrid     = myGrid[:, ilon]
 
-ilat = np.where( (min(elat)<=glat) & (glat<=max(elat)) )[0]
-ilon = np.where( (min(elon)<=glon) & (glon<=max(elon)) )[0]
-myGrid     = GridArea[ ilat, :]
-myGrid     = myGrid[:, ilon]
+   Runoff     = Runoff    * 1e-3 * myGrid / 86400 # In meters3.s-1
+   Baseflow   = Baseflow  * 1e-3 * myGrid / 86400 # In meters3.s-1
 
-Runoff     = Runoff    * 1e-3 * myGrid / 86400 # In meters3.s-1
-Baseflow   = Baseflow  * 1e-3 * myGrid / 86400 # In meters3.s-1
-
-## Compute the Annual temperature
+### Compute the Annual temperature
 navg    = 365
-ndays   = len(etime)
 AirYear = np.copy(AirTemp)
 
 for i in range(ndays):

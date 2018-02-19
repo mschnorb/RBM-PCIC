@@ -39,30 +39,28 @@ dEnd   = Config.get('rbm_forcings', 'dEnd')
 ################################################
 ################################################
 ############ Open an read direction file
-fic   = Dataset(ipath+ific)
+with Dataset(ipath+ific) as fic:
+   # Flow direction
+   Flow_dir = fic.variables['Flow_Direction']
+   Flow_dir = np.matrix(Flow_dir)
+   Flow_dir[Flow_dir < 0] = np.nan
+   ncells   = np.count_nonzero(~np.isnan(Flow_dir)) # Number of active cells
 
-# Flow direction
-Flow_dir = fic.variables['Flow_Direction']
-Flow_dir = np.matrix(Flow_dir)
-Flow_dir[Flow_dir < 0] = np.nan
-ncells   = np.count_nonzero(~np.isnan(Flow_dir)) # Number of active cells
+   # Flow distance
+   Flow_dis = fic.variables['Flow_Distance']
+   Flow_dis = np.matrix(Flow_dis)
 
-# Flow distance
-Flow_dis = fic.variables['Flow_Distance']
-Flow_dis = np.matrix(Flow_dis)
+   # Read the grid
+   lat      = np.array( fic.variables['lat'] )
+   lon      = np.array( fic.variables['lon'] )
+   nlat     = len(lat)
+   nlon     = len(lon)
+   nall     = nlat * nlon # Total number of cells
 
-# Read the grid
-lat      = np.array( fic.variables['lat'] )
-lon      = np.array( fic.variables['lon'] )
-nlat     = len(lat)
-nlon     = len(lon)
-nall     = nlat * nlon # Total number of cells
-
-if(lat[0] > lat[1]): # Check if lat is in ascending order
-   lat      = lat[::-1]
-   Flow_dir = np.flipud(Flow_dir)
-   Flow_dis = np.flipud(Flow_dis)
-
+   if(lat[0] > lat[1]): # Check if lat is in ascending order
+      lat      = lat[::-1]
+      Flow_dir = np.flipud(Flow_dir)
+      Flow_dis = np.flipud(Flow_dis)
 ############ End of Open an read direction file
 ################################################
 ################################################
