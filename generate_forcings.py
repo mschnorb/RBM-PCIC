@@ -281,25 +281,6 @@ for t in range(len(stime)):
 
       Qout = QRunoff[t,ioutq[n]] + QBaseflow[t,ioutq[n]]
       #Qout = QTest[t,ioutq[n]]
-
-      #if(t == 0):
-      #Qin = QRunoff[t,iinq[n]] + QBaseflow[t,iinq[n]]
-      #else:
-         #Qin = QRunoff[t-1,ioutq[n]] + QBaseflow[t-1,ioutq[n]]
-
-      # Runoff and Baseflow
-      #if(t == 0):
-         #Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]
-         #Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]]
-      #elif(t == 1):
-         #Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   #+ 0.328619*Runoff[t-1,irlat[n],irlon[n]]
-         #Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] #+ 0.328619*Baseflow[t-1,irlat[n],irlon[n]]
-      #elif(t == 2):
-         #Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   #+ 0.328619*Runoff[t-1,irlat[n],irlon[n]]   + 0.036218*Runoff[t-2,irlat[n],irlon[n]]
-         #Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] #+ 0.328619*Baseflow[t-1,irlat[n],irlon[n]] + 0.036218*Baseflow[t-2,irlat[n],irlon[n]]
-      #else:
-         #Qrun = 0.631978*Runoff[t,irlat[n],irlon[n]]   #+ 0.328619*Runoff[t-1,irlat[n],irlon[n]]   + 0.036218*Runoff[t-2,irlat[n],irlon[n]]   + 0.003185*Runoff[t-3,irlat[n],irlon[n]]
-         #Qbas = 0.631978*Baseflow[t,irlat[n],irlon[n]] #+ 0.328619*Baseflow[t-1,irlat[n],irlon[n]] + 0.036218*Baseflow[t-2,irlat[n],irlon[n]] + 0.003185*Baseflow[t-3,irlat[n],irlon[n]]
          
       Qrun = myUH[n]*Runoff[t,irlat[n],irlon[n]]
       Qbas = myUH[n]*Baseflow[t,irlat[n],irlon[n]]

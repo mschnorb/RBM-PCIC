@@ -245,6 +245,15 @@ do nyear=start_year,end_year
                   Q_trb_sum   = 0.0
                   T_trb_load  = 0.0
                   
+!                   if(time.eq.1989.0042) then
+!                   if(ncell.le.74 .and. nncell.ge.72) then
+!                      write(*,*) 'Before tributaries'
+!                      write(*,*) nr, ns, ncell, nncell, Q_inflow, Q_outflow, T_0
+!                      write(*,*) 'ntribs = ', ntribs
+! !                      write(*,*) no_tribs
+!                   end if
+!                   end if
+                  
                   if(ntribs.gt.0 .and. .not.DONE) then
                      do ntrb = 1,ntribs
                         nr_trib = trib(nncell,ntrb)
@@ -264,9 +273,9 @@ do nyear=start_year,end_year
                      DONE = .TRUE.
 
                      ! Update Q_outflow
-                     Q_outflow = Q_inflow + Q_dstrb + Q_trb_sum
+                     Q_inflow  = Q_outflow - Q_dstrb - Q_trb_sum
                   end if ! End of if on ntribs
-                  
+
                   !  Ratio (mostly when there are tributaries)
                   Q_ratio   = Q_inflow/Q_outflow
 
