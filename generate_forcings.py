@@ -101,7 +101,8 @@ with Dataset(vpath+energy) as efic:
    # AirTemp, VapPress, Short, Long etc...
    AirTemp    = np.array(efic.variables['AIR_TEMP'])
    SoilTemp   = np.array(efic.variables['SOIL_TEMP'])
-   Ratio      = np.array(efic.variables['RATIO'])
+   #Ratio      = np.array(efic.variables['RATIO'])
+   Ratio      = np.copy(AirTemp)# To delete later...
    VapPress   = np.array(efic.variables['VP'])
    Short      = np.array(efic.variables['SHORTWAVE'])
    Long       = np.array(efic.variables['LONGWAVE'])

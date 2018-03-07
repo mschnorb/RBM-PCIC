@@ -3,6 +3,7 @@ SUBROUTINE SYSTMM(temp_file,param_file)
 use Block_Energy
 use Block_Hydro
 use Block_Network
+use Date_Utility
 
 Implicit None
 
@@ -15,6 +16,7 @@ integer          :: nr_trib,ntribs
 integer          :: nrec_flow,nrec_heat
 integer          :: n1,n2,nnd,nobs,nyear,nd_year,ntmp
 integer          :: npart,nseg,nx_s,nx_part,nx_head
+integer          :: year, month, day, status
 
 ! Indices for lagrangian interpolation
 integer              :: njb,npndx,ntrp
@@ -27,7 +29,7 @@ real             :: T_dstrb,T_dstrb_load,T_trb_load,T_base_load, T_runoff_load
 real             :: rminsmooth
 real             :: T_0,T_dist,Thh,Tseuil,T_base,T_runoff
 real(8)          :: time
-real             :: x,xd,xdd,xd_year,xwpd,year
+real             :: x,xd_year,xwpd
 real             :: tntrp
 real             :: dt_ttotal
 real,dimension(4):: ta,xa
@@ -89,22 +91,21 @@ hpd   = 1./xwpd
 do nyear=start_year,end_year
    write(*,*) ' Simulation Year - ',nyear,start_year,end_year
    nd_year = 365
-   if (mod(nyear,4).eq.0) nd_year = 366 ! Not true for 1900. To correct.
-
+   if (Is_Leap_Year(nyear)) nd_year = 366
+   
    ! Day loop starts
    do nd=1,nd_year
 
-      year=nyear
-      xd=nd
-      xd_year=nd_year
+      year    = nyear
+      xd_year = nd_year
       
       ! Start the numbers of days-to-date counter
       ndays=ndays+1
 
       ! Daily period loop starts
       do ndd=1,nwpd
-         xdd  = ndd
-         time = year + (xd + (xdd-0.5)*hpd) / xd_year 
+
+         status = Day_of_Year_to_Date(nd, year, Day_of_Month = day, Month = month)
 
          ! Read the hydrologic and meteorologic forcings
          call READ_FORCING
@@ -244,16 +245,7 @@ do nyear=start_year,end_year
                   ntribs = no_tribs(nncell)
                   Q_trb_sum   = 0.0
                   T_trb_load  = 0.0
-                  
-!                   if(time.eq.1989.0042) then
-!                   if(ncell.le.74 .and. nncell.ge.72) then
-!                      write(*,*) 'Before tributaries'
-!                      write(*,*) nr, ns, ncell, nncell, Q_inflow, Q_outflow, T_0
-!                      write(*,*) 'ntribs = ', ntribs
-! !                      write(*,*) no_tribs
-!                   end if
-!                   end if
-                  
+
                   if(ntribs.gt.0 .and. .not.DONE) then
                      do ntrb = 1,ntribs
                         nr_trib = trib(nncell,ntrb)
@@ -322,7 +314,7 @@ do nyear=start_year,end_year
                !   other points by some additional code that keys on the
                !   value of ndelta (now a vector)(UW_JRY_11/08/2013)
 !                call WRITE(time,nd,nr,ncell,ns,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
-               call WRITE(time,nd,nr,ncell,nncell,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
+               call WRITE(year,month,day,nd,nr,ncell,nncell,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
 
             end do ! End of computational element loop (ns=1,no_celm(nr))
 !             if(time.eq.1989.0042) write(*,'(A,2I3)') 'End of #reach in a stream loop : ', nr, no_celm(nr)
