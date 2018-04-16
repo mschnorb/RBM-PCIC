@@ -1,5 +1,6 @@
 Subroutine BEGIN(param_file,spatial_file)
 !
+use netcdf
 use Block_Energy
 use Block_Hydro
 use Block_Network

@@ -36,6 +36,7 @@ vpath    = Config.get('vic_output', 'dir')
 energy   = Config.get('vic_output', 'vic_output')
 
 rpath    = Config.get('rvic_output', 'dir')
+flow     = Config.get('rvic_output', 'flow')
 runoff   = Config.get('rvic_output', 'runoff')
 baseflow = Config.get('rvic_output', 'baseflow')
 
@@ -81,20 +82,24 @@ with Dataset(ppath+pour_points) as afic:
    Width = 0.08 * Area**0.396  # From Yearsley 2012 (in m)
 
 ###### Forcings water
-### Streamflow from Runoff
-with Dataset(rpath+runoff) as wfic:
-   QRunoff = np.array(wfic.variables['streamflow']) # In mm.day-1
+#### Streamflow from Runoff
+#with Dataset(rpath+runoff) as wfic:
+   #QRunoff = np.array(wfic.variables['streamflow']) # In m3.s-1
+   #stime   = np.array(wfic.variables['time'])
+   #slat    = np.array(wfic.variables['lat'])
+   #slon    = np.array(wfic.variables['lon'])
+
+#### Streamflow from Baseflow
+#with Dataset(rpath+baseflow) as wfic:
+   #QBaseflow = np.array(wfic.variables['streamflow'])
+   
+### Streamflow from Runoff and Baseflow
+with Dataset(rpath+flow) as wfic:
+   QFlow   = np.array(wfic.variables['streamflow']) # In m3.s-1
    stime   = np.array(wfic.variables['time'])
    slat    = np.array(wfic.variables['lat'])
    slon    = np.array(wfic.variables['lon'])
 
-### Streamflow from Baseflow
-with Dataset(rpath+baseflow) as wfic:
-   QBaseflow = np.array(wfic.variables['streamflow'])
-
-#wfic      = Dataset("/storage/home/gdayon/hydro/STELL/flow/hist/STELL.rvic.h0a.2006-01-01.nc")
-#QTest     = np.array(wfic.variables['streamflow'])
-#wfic.close()
 
 ###### Forcings energy and local water fluxes
 with Dataset(vpath+energy) as efic:
@@ -117,7 +122,7 @@ with Dataset(vpath+energy) as efic:
    VapPress    = VapPress * 10 # kPa to hPa
 
    SoilTemp[ SoilTemp == 1e+20 ] = np.nan
-   SoilTemp = SoilTemp[:,2,:,:]
+   SoilTemp = SoilTemp[:,0,:,:]
 
    # Runoff and Baseflow
    Runoff     = np.array(efic.variables['RUNOFF'])
@@ -280,32 +285,32 @@ for t in range(len(stime)):
                new_sii  = np.where(nolat & nolon)[0]
                iinq[n].append(new_sii[0])
 
-      Qout = QRunoff[t,ioutq[n]] + QBaseflow[t,ioutq[n]]
-      #Qout = QTest[t,ioutq[n]]
+      Qout = QFlow[t,ioutq[n]]
+      #Qout = QRunoff[t,ioutq[n]] + QBaseflow[t,ioutq[n]]
          
       Qrun = myUH[n]*Runoff[t,irlat[n],irlon[n]]
       Qbas = myUH[n]*Baseflow[t,irlat[n],irlon[n]]
+      
+      # Area, Depth, Width
+      mydepth, mywidth = 0.2307 * Qout**0.4123, 6.6588 * Qout**0.4967
+      mydepth, mywidth = Depth[ioutq[n]],Width[ioutq[n]]
+      mydepth, mywidth = '{:6.1f}'.format(mydepth), '{:7.1f}'.format(mywidth)
 
       Test = Qout - Qrun - Qbas
-      Test = '{:10.5f}'.format(Test)
+      Test = '{:12.5f}'.format(Test)
 
-      Qout,Qrun,Qbas = '{:10.5f}'.format(Qout), '{:10.5f}'.format(Qrun), '{:10.5f}'.format(Qbas)
+      Qout,Qrun,Qbas = '{:12.5f}'.format(Qout), '{:12.5f}'.format(Qrun), '{:12.5f}'.format(Qbas)
       
       # Ratio of melted water
       myRatio = Ratio[t,irlat[n],irlon[n]]
-      myRatio = '{:10.5f}'.format(myRatio)
-
-      # Area, Depth, Width
-      #mydepth,mywidth  = Depth[ioutq],Width[ioutq] # To correct, see below
-      mydepth,mywidth  = Depth[ioutq[n]],Width[ioutq[n]]
-      mydepth,mywidth  = '{:6.1f}'.format(mydepth), '{:7.1f}'.format(mywidth)
+      myRatio = '{:12.5f}'.format(myRatio)
 
       # Velocity
       Vel   = Velocity[ivlat[n],ivlon[n]]
       Vel   = format(Vel, "6.2f")
 
-      tstep = '{:5d}'.format(t+1)
-      nnode = '{:5d}'.format(mynode)
+      tstep = '{:8d}'.format(t+1)
+      nnode = '{:8d}'.format(mynode)
 
       ofic.write(str(tstep)+str(nnode)+str(Qout)+str(Qrun)+str(Qbas)+str(myRatio)+str(mydepth)+str(mywidth)+str(Vel)+" ")
 
@@ -330,10 +335,10 @@ for t in range(len(stime)):
          # Lat and Lon indexes
          ielat = list(elat).index(mylat)
          ielon = list(elon).index(mylon)
-
+         
          ihlat.append(ielat)
          ihlon.append(ielon)
-
+      
       AirOut   = AirTemp[t,ihlat[n],ihlon[n]]
       AirAvg   = AirYear[t,ihlat[n],ihlon[n]]
       SoilOut  = SoilTemp[t,ihlat[n],ihlon[n]]
@@ -343,8 +348,8 @@ for t in range(len(stime)):
       DensOut  = Density[t,ihlat[n],ihlon[n]]
       PressOut = Press[t,ihlat[n],ihlon[n]]
       WindOut  = Wind[t,ihlat[n],ihlon[n]]
-
-
+      
+      
       AirOut   = '{:6.1f}'.format(AirOut)
       AirAvg   = '{:6.1f}'.format(AirAvg)
       SoilOut  = '{:6.1f}'.format(SoilOut)

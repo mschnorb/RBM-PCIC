@@ -200,7 +200,6 @@ do nyear=start_year,end_year
                dt_total = 0.0
 
                do nm=no_dt(ns),1,-1
-!                   if(time.eq.1989.0042) write(*,*) '     Begin of #dt loop'
                   dt_calc = dt_part(nm)
                   x_calc  = x_part(nm)
                   
@@ -302,7 +301,6 @@ do nyear=start_year,end_year
 
                   ! ... ?
                   dt_total = dt_total + dt_calc
-!                   if(time.eq.1989.0042) write(*,*) ' ' 
                end do ! End of loop on nm=no_dt(ns),1,-1 (?!?)
 
                temp(nr,ns,n2) = T_0
@@ -314,10 +312,9 @@ do nyear=start_year,end_year
                !   other points by some additional code that keys on the
                !   value of ndelta (now a vector)(UW_JRY_11/08/2013)
 !                call WRITE(time,nd,nr,ncell,ns,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
-               call WRITE(year,month,day,nd,nr,ncell,nncell,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
+               call WRITE(year,month,day,nd,nr,ncell,nncell,T_0,T_base,dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
 
             end do ! End of computational element loop (ns=1,no_celm(nr))
-!             if(time.eq.1989.0042) write(*,'(A,2I3)') 'End of #reach in a stream loop : ', nr, no_celm(nr)
          end do ! End of reach loop
       
          ntmp = n1

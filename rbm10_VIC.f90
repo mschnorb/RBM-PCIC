@@ -92,7 +92,7 @@ read(90,'(A)') flow_file
 !
 !     Open file with hydrologic data
 !
-open(unit=35,FILE=TRIM(flow_file) ,FORM='FORMATTED',ACCESS='DIRECT' ,RECL=70,STATUS='old')
+open(unit=35,FILE=TRIM(flow_file) ,FORM='FORMATTED',ACCESS='DIRECT' ,RECL=84,STATUS='old')
 !
 !
 read(90,'(A)') heat_file
