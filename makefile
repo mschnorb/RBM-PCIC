@@ -6,15 +6,15 @@
 # Defining variables
 #
 objects = rbm10_VIC.o Begin.o Systmm.o Particle_Track.o \
-          Energy.o Julian.o tntrp.o Read_Forcing.o \
-          Block_Energy.o Block_Hydro.o Block_Network.o \
+          Energy.o Julian.o tntrp.o Read_Forcing.o Create.o \
+          Block_Energy.o Block_Hydro.o Block_Network.o Block_Netcdf.o \
           Date_Utility.o Error_Handler.o File_Utility.o \
-          Water_Balance.o Write.o
+          Water_Balance.o Write.o CheckStatus.o
 f90comp = gfortran
 keys = -c -I /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/include
 # Makefile
 rbm10_VIC: $(objects)
-	$(f90comp) -o RBM_PCIC $(objects)
+	$(f90comp) -o RBM_PCIC -I /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/include -L /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/lib -lnetcdff $(objects)
 
 block_energy.mod: Block_Energy.f90
 	$(f90comp) $(keys) Block_Energy.f90
@@ -25,6 +25,9 @@ block_hydro.mod: Block_Hydro.f90
 block_network.mod: Block_Network.f90
 	$(f90comp) $(keys) Block_Network.f90
 
+block_netcdf.mod: Block_Netcdf.f90
+	$(f90comp) $(keys) Block_Netcdf.f90
+
 file_utility.mod: File_Utility.f90
 	$(f90comp) $(keys) File_Utility.f90
 
@@ -34,13 +37,16 @@ error_handler.mod: file_utility.mod Error_Handler.f90
 date_utility.mod: error_handler.mod Date_Utility.f90
 	$(f90comp) $(keys) Date_Utility.f90
 
-Begin.o: block_energy.mod block_network.mod block_hydro.mod Begin.f90
+CheckStatus.o: CheckStatus.f90
+	$(f90comp) $(keys) CheckStatus.f90
+
+Begin.o: block_energy.mod block_network.mod block_hydro.mod block_netcdf.mod Begin.f90
 	$(f90comp) $(keys) Begin.f90
 
-Read_Forcing.o: block_energy.mod block_hydro.mod block_network.mod Read_Forcing.f90
+Read_Forcing.o: block_energy.mod block_hydro.mod block_network.mod block_netcdf.mod Read_Forcing.f90
 	$(f90comp) $(keys) Read_Forcing.f90 
 
-Systmm.o: block_network.mod block_energy.mod block_hydro.mod date_utility.mod Systmm.f90
+Systmm.o: block_network.mod block_energy.mod block_hydro.mod block_netcdf.mod date_utility.mod Systmm.f90
 	$(f90comp) $(keys) Systmm.f90
 
 Energy.o: block_energy.mod Energy.f90
@@ -48,8 +54,11 @@ Energy.o: block_energy.mod Energy.f90
 
 Particle_Track.o: block_hydro.mod block_network.mod Particle_Track.f90
 	$(f90comp) $(keys) Particle_Track.f90
+	
+Create.o: block_netcdf.mod Create.f90
+	$(f90comp) $(keys) Create.f90
 
-Write.o: Write.f90
+Write.o: block_netcdf.mod Write.f90
 	$(f90comp) $(keys) Write.f90
 
 Julian.o: Julian.f90

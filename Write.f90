@@ -1,6 +1,7 @@
 SUBROUTINE WRITE(year,month,day,nd,nr,ncell,ns,T_0,T_head,dbt,Q_inflow,Q_outflow,Q_runoff,Q_base)
 
 use netcdf
+use Block_Netcdf
 
 Implicit NONE
 !
@@ -19,4 +20,5 @@ Diff = Q_outflow - Q_runoff - Q_base
 !!    year,month,day,nd,nr,ncell,ns,T_0,T_head,dbt,Q_inflow,Q_outflow,Q_runoff,Q_base,Diff
 write (20,'(4i8,3f10.2,5f15.5)') &
     year,month,day,ncell,T_0,T_head,dbt,Q_outflow,Q_runoff,Q_base
+
 end SUBROUTINE WRITE

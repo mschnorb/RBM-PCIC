@@ -20,7 +20,7 @@ do nr=1,nreach ! Loop over reach in the network
     nrec_flow=flow_cells*(ndays-1)+no_flow
     nrec_heat=heat_cells*(ndays-1)+no_heat
 
-    read(35,'(2i5,4f10.5,f6.1,f7.1,f6.2)' &
+    read(35,'(2i8,4f12.5,f6.1,f7.1,f6.2)' &
            ,rec=nrec_flow) nnd,ncell &
            ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Ratio(no_heat) &  
            ,depth(no_heat),width(no_heat),u(no_heat)

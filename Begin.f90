@@ -1,23 +1,24 @@
 Subroutine BEGIN(param_file,spatial_file)
-!
+
 use netcdf
 use Block_Energy
 use Block_Hydro
 use Block_Network
-!
-implicit none
-!    
-    character (len=8) :: end_date,start_date     
-    character (len=8) :: lat
-    character (len=10):: long
-    character (len=200):: param_file,source_file,spatial_file
-!
-    integer:: Julian
-    integer:: head_name,trib_cell
-    integer:: jul_start,main_stem,nyear1,nyear2,nc,ncell,nseg
-    integer:: ns_max_test,node,ncol,nrow,nr,cum_sgmnt
-!
-    logical:: first_cell,source
+use Block_Netcdf
+
+Implicit None
+    
+    character (len=8)   :: end_date,start_date     
+    character (len=8)   :: clat
+    character (len=10)  :: clon
+    character (len=200) :: param_file,source_file,spatial_file
+
+    integer :: Julian
+    integer :: head_name,trib_cell
+    integer :: jul_start,main_stem,nyear1,nyear2,nc,ncell,nseg
+    integer :: ns_max_test,node,ncol,nrow,nr,cum_sgmnt
+
+    logical :: first_cell,source
 !
     real :: nndlta
     real :: rmile0,rmile1,xwpd
@@ -31,8 +32,9 @@ implicit none
 read(90,*) start_date,end_date
 read(start_date,'(i4,2i2)') start_year,start_month,start_day
 read(end_date,  '(i4,2i2)') end_year,end_month,end_day
-nyear1=start_year
-nyear2=end_year
+nyear1 = start_year
+nyear2 = end_year
+
 write(*,'(2(2x,i4,2i2))')  &
  start_year,start_month,start_day,end_year,end_month,end_day
 !
@@ -42,7 +44,7 @@ jul_start = Julian(start_year,start_month,start_day)
 !
 read(90,*) nreach,flow_cells,heat_cells,source
 !
-! Allocate dynamic arrays
+! Allocate dynamic arrays (messy)
 !
  allocate(ndelta(heat_cells))
  allocate(mu(nreach))
@@ -65,6 +67,13 @@ read(90,*) nreach,flow_cells,heat_cells,source
  allocate(head_cell(nreach))
  allocate(segment_cell(nreach,ns_max))
  allocate(x_dist(nreach,0:ns_max))
+ 
+!!!!!! Allocate dynamic arrays (mine, much better :p)
+! Network information
+allocate(nnodes(heat_cells))
+allocate(llat(heat_cells))
+allocate(llon(heat_cells))
+ 
 !
 !     Start reading the reach date and initialize the reach index, NR
 !     and the cell index, NCELL
@@ -101,13 +110,13 @@ do nr = 1,nreach
    end if
 
    ! Reading Mohseni parameters for each headwaters (UW_JRY_2011/06/18)
-   read(90,*) alphaMu(nr),beta(nr) &
-            ,gmma(nr),mu(nr),smooth_param(nr)
+   read(90,*) alphaMu(nr),beta(nr), &
+              gmma(nr),mu(nr),smooth_param(nr)
 
    ! Reading Reach Element information
    first_cell=.true.
   
-   do nc=1,no_cells(nr)
+   do nc = 1,no_cells(nr)
       ncell = ncell+1
 
       ! Relate the cell number from the linear list to the local cell number
@@ -127,8 +136,13 @@ do nr = 1,nreach
       ! Variable ndelta read in here.  At present, number of elements
       ! is entered manually into the network file (UW_JRY_2011/03/15)
       read(90,'(5x,i5,5x,i5,8x,i5,6x,a8,6x,a10,7x,f15.2,f5.0)')  &
-              node,nrow,ncol,lat,long,rmile1,ndelta(ncell)
+              node,nrow,ncol,clat,clon,rmile1,ndelta(ncell)
 
+      ! Keep some variables for netcdf
+      nnodes(ncell) = node
+      read(clat, *) llat(ncell)
+      read(clon, *) llon(ncell)
+      
       ! Set the number of segments of the default, if not specified
       if (ndelta(ncell).lt.1) ndelta(ncell)=n_default
 
@@ -139,20 +153,21 @@ do nr = 1,nreach
       end if
 
       ! Added variable ndelta (UW_JRY_2011/03/15)
-      dx(ncell)=(rmile0-rmile1)/ndelta(ncell)
-      rmile0=rmile1
-      nndlta=0
+      dx(ncell) = (rmile0 - rmile1) / ndelta(ncell)
+      rmile0    = rmile1
+      nndlta    = 0
       200 continue
-      nndlta=nndlta+1
-      nseg=nseg+1
-      segment_cell(nr,nseg)  =ncell
-      segment_cell(nr,nseg+1)=ncell
+      
+      nndlta    = nndlta + 1
+      nseg      = nseg + 1
+      segment_cell(nr,nseg)   = ncell
+      segment_cell(nr,nseg+1) = ncell
       write(*,*) 'nndlta --',nr,nndlta,nseg,ncell,segment_cell(nr,nseg),dx(ncell),rmile1
       x_dist(nr,nseg)=x_dist(nr,nseg-1)-dx(ncell)
 
       ! Write Segment List for mapping to temperature output (UW_JRY_2008/11/19)
       open(22,file=TRIM(spatial_file),status='unknown') ! (changed by WUR_WF_MvV_2011/01/05)
-      write(22,'(4i6,1x,a8,1x,a10,f5.0)') nr,ncell,nrow,ncol,lat,long,nndlta
+      write(22,'(4i6,1x,a8,1x,a10,f5.0)') nr,ncell,nrow,ncol,clat,clon,nndlta
 
       !  Added variable ndelta  (UW_JRY_2011/03/15)
       !
@@ -172,10 +187,9 @@ do nr = 1,nreach
       conflnce(trib_cell,no_tribs(trib_cell)) = ncell
    end if
 
-   if(ns_max_test.lt.nseg) ns_max_test=nseg
+   if(ns_max_test.lt.nseg) ns_max_test = nseg
 
 end do ! End of loop on reach (nr=1,nreach)
-
 
 if(ns_max_test.gt.ns_max) then
   write(*,*) 'RBM is terminating because'

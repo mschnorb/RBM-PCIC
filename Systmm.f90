@@ -1,8 +1,12 @@
 SUBROUTINE SYSTMM(temp_file,param_file)
 
+use netcdf
+
 use Block_Energy
 use Block_Hydro
 use Block_Network
+use Block_Netcdf
+
 use Date_Utility
 
 Implicit None
@@ -10,6 +14,7 @@ Implicit None
 character (len=200):: temp_file
 character (len=200):: param_file
 
+integer          :: i,j,k
 integer          :: ncell,nncell,ncell0,nc_head,no_flow,no_heat
 integer          :: nc,nd,ndd,nm,nr,ns
 integer          :: nr_trib,ntribs
@@ -25,10 +30,9 @@ integer, dimension(2):: nterp=(/2,3/)
 
 real             :: dt_calc,dt_total,hpd,q_dot,q_surf,z,w,x_calc
 real             :: Q_dstrb,Q_inflow,Q_outflow,Q_ratio,Q_trb,Q_trb_sum,Q_base,Q_runoff,myratio
-real             :: T_dstrb,T_dstrb_load,T_trb_load,T_base_load, T_runoff_load
+real             :: T_dstrb,T_dstrb_load,T_trb_load,T_base_load,T_runoff_load
 real             :: rminsmooth
 real             :: T_0,T_dist,Thh,Tseuil,T_base,T_runoff
-real(8)          :: time
 real             :: x,xd_year,xwpd
 real             :: tntrp
 real             :: dt_ttotal
@@ -76,43 +80,58 @@ T_head = 4.0
 ! Initialize smoothed air temperatures for estimating headwaters temperatures
 T_smth = 4.0
 
-! open the output file
-open(20,file=TRIM(temp_file),status='unknown')
+! Create the netCDF file and define the dimensions
+open(20,file = TRIM(temp_file), status = 'unknown')
+write(out_file_ncdf, *) TRIM(temp_file), '.nc'
+write(out_file_ncdf, *) TRIM( adjustl(out_file_ncdf) )
+
+call CREATE
+
+! My allocation to save in a netcdf file
+allocate( Qs_vec(heat_cells, nlvls) )
+allocate( Ts_vec(heat_cells, nlvls) )
+
+allocate( Qs_2d(nlon, nlat, nlvls) )
+allocate( Ts_2d(nlon, nlat, nlvls) )
+
+Qs_2d(:,:,:) = 1.e+20
+Ts_2d(:,:,:) = 1.e+20
 
 ! Initialize dummy counters that facilitate updating simulated values
 n1    = 1
 n2    = 2
 nobs  = 0
 ndays = 0
+   clvls = 1
 xwpd  = nwpd
 hpd   = 1./xwpd
 
 ! Year loop starts
-do nyear=start_year,end_year
+do nyear = start_year, end_year
    write(*,*) ' Simulation Year - ',nyear,start_year,end_year
    nd_year = 365
    if (Is_Leap_Year(nyear)) nd_year = 366
    
    ! Day loop starts
-   do nd=1,nd_year
-
+   do nd = 1, nd_year
+      
       year    = nyear
       xd_year = nd_year
       
       ! Start the numbers of days-to-date counter
-      ndays=ndays+1
-
+      ndays   = ndays+1
+      
       ! Daily period loop starts
-      do ndd=1,nwpd
-
+      do ndd = 1, nwpd
+         
          status = Day_of_Year_to_Date(nd, year, Day_of_Month = day, Month = month)
-
+         
          ! Read the hydrologic and meteorologic forcings
          call READ_FORCING
 
          !!! Begin reach computations
          ! Begin cycling through the reaches
-         do nr=1,nreach ! nr = #reach
+         do nr = 1, nreach
 !             if(time.eq.1989.0042) write(*,*) 'Begin of #reach in a stream loop'
 
             nc_head = segment_cell(nr,1)
@@ -145,24 +164,24 @@ do nyear=start_year,end_year
             ! Begin cell computational loop
             do ns=1,no_celm(nr)
 !                if(time.eq.1989.0042) write(*,*) '   Begin of ns loop'
-
+               
                DONE = .FALSE.
-  
+               
                ! Testing new code 8/8/2016
                !Establish particle tracks
                call Particle_Track(nr,ns,nx_s,nx_head)
-
+               
                ncell = segment_cell(nr,ns)
-
+               
                ! Now do the third-order interpolation to
                ! establish the starting temperature values
                ! for each parcel
                nseg = nstrt_elm(ns)
-
+               
                !!! Perform polynomial interpolation
                ! Interpolation inside the domain
                npndx = 2
-
+               
                ! Interpolation at the upstream boundary if the
                ! parcel has reached that boundary
                if(nx_head.eq.0) then
@@ -170,16 +189,16 @@ do nyear=start_year,end_year
                else 
                   ! Interpolation at the upstream or downstream boundary
                   if(nseg .eq. 1 .or. nseg .eq. no_celm(nr)) npndx=1
-
+                  
                   do ntrp = nterp(npndx),1,-1
-                     npart    = nseg+ntrp+ndltp(npndx)
+                     npart    = nseg + ntrp + ndltp(npndx)
                      xa(ntrp) = x_dist(nr,npart)
                      ta(ntrp) = temp(nr,npart,n1)
                   end do
-
+                  
                   ! Start the cell counter for nx_s
                   x = x_part(nx_s)
-
+                  
                   ! Call the interpolation function
                   T_0 = tntrp(xa,ta,x,nterp(npndx))
                end if ! End of if nx_head
@@ -269,13 +288,13 @@ do nyear=start_year,end_year
 
                   !  Ratio (mostly when there are tributaries)
                   Q_ratio   = Q_inflow/Q_outflow
-
+                  
 ! Original version of RBM
 !                   ! Do the mass/energy balance
 !                   T_0  = T_0*Q_ratio                            &
 !                        + (T_dstrb_load + T_trb_load)/Q_outflow  &
 !                        + q_dot*dt_calc
-
+                  
                   !!! Quasi-original version (we consider Runoff and Baseflow contributions)
                   T_0  = T_0*(Q_inflow - Q_runoff - Q_base)  / Q_outflow &
                        + T_trb_load                          / Q_outflow &
@@ -301,11 +320,18 @@ do nyear=start_year,end_year
 
                   ! ... ?
                   dt_total = dt_total + dt_calc
-               end do ! End of loop on nm=no_dt(ns),1,-1 (?!?)
+               end do ! End of loop on nm = no_dt(ns),1,-1 (?!?)
 
                temp(nr,ns,n2) = T_0
                T_trib(nr)     = T_0
-
+               
+               ! Write netcdf data in 1D variables
+               Qs_vec(ncell, clvls)  = Q_outflow
+               Ts_vec(ncell, clvls)  = T_0
+               
+               clvls = clvls + 1
+               if (clvls.gt.nlvls) clvls = 1
+               
                !   Write all temperature output UW_JRY_11/08/2013
                !   The temperature is output at the beginning of the 
                !   reach.  It is, of course, possible to get output at
@@ -316,20 +342,45 @@ do nyear=start_year,end_year
 
             end do ! End of computational element loop (ns=1,no_celm(nr))
          end do ! End of reach loop
-      
+         
          ntmp = n1
          n1 = n2
          n2 = ntmp
-
+         
          4650 format(16x,12(6x,f6.0,6x))
          4700 format(f10.4,f6.0,15(f6.1,f8.3))
          4750 format(f10.4,10(i4,f8.0))
-      
       end do ! End of weather period loop (NDD=1,NWPD)
+      
+      !!! Convert 1D array to 2D and write them in the ncdf file
+      do i = 1,heat_cells
+         Qs_2d(ivlon(i), ivlat(i), :) = Qs_vec(i,:)
+         Ts_2d(ivlon(i), ivlat(i), :) = Ts_vec(i,:)
+      end do ! EOL on heat_cells (i)
+      
+!       start(ndims)   = ndays
+!       call check( nf90_put_var(ncid, Tsid, Ts_2d, start = start, &
+!                               count = count) )
+!       call check( nf90_put_var(ncid, Qsid, Qs_2d, start = start, &
+!                               count = count) )
+      
+      start(ndims) = ndays
+      call check( nf90_put_var(ncid, Tsid, Ts_vec, start = start, &
+                              count = count) )
+      call check( nf90_put_var(ncid, Qsid, Qs_vec, start = start, &
+                              count = count) )
+      
    end do ! End of day loop (ND=1,365/366)
 end do ! End of year loop
 
+!!! Create the time counter and write it:
+allocate( time(ndays) )
+time(:) = (/(i, i=0,ndays-1, 1)/)
+call check( nf90_put_var(ncid, tid, time) )
 
+!!! Close the netcdf file
+write(*,*) 'ndays :', ndays
+call check( nf90_close(ncid) )
 !     ******************************************************
 !                        return to rmain
 !     ******************************************************
