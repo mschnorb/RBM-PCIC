@@ -14,17 +14,17 @@ no_heat = 0
 
 do nr=1,nreach ! Loop over reach in the network
   do nc=1,no_cells(nr)-1 ! Loop over cells in the reach
-    no_flow=no_flow+1
-    no_heat=no_heat+1
+    no_flow = no_flow + 1
+    no_heat = no_heat + 1
 
-    nrec_flow=flow_cells*(ndays-1)+no_flow
-    nrec_heat=heat_cells*(ndays-1)+no_heat
+    nrec_flow = flow_cells*(ndays-1) + no_flow
+    nrec_heat = heat_cells*(ndays-1) + no_heat
 
     read(35,'(2i8,4f12.5,f6.1,f7.1,f6.2)' &
            ,rec=nrec_flow) nnd,ncell &
-           ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Ratio(no_heat) &  
+           ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Q_runsnow(no_heat) &  
            ,depth(no_heat),width(no_heat),u(no_heat)
-
+           
     Q_diff(no_heat) = 0. ! We will deal with that later. If artificial lateral inflow.
 
     if(u(no_heat).lt.0.01) u(no_heat)=0.01
@@ -36,7 +36,6 @@ do nr=1,nreach ! Loop over reach in the network
            ,ea(no_heat),Q_ns(no_heat),Q_na(no_heat) &
            ,rho_dmmy,press(no_heat),wind(no_heat)
 
-!   
   if(ncell.ne.no_heat) write(*,*) 'Heat file error',ncell,no_heat
 !
 !  Added variable ndelta (UW_JRY_2011/03/15
@@ -66,13 +65,15 @@ do nr=1,nreach ! Loop over reach in the network
 !
   no_heat = no_heat + 1
 
-  Q_out(no_heat)=Q_out(no_heat-1)
+  Q_out(no_heat) = Q_out(no_heat-1)
 
-  Q_run(no_heat) = Q_run(no_heat-1)
-  Q_bas(no_heat) = Q_bas(no_heat-1)
+  Q_run(no_heat)     = Q_run(no_heat-1)
+  Q_bas(no_heat)     = Q_bas(no_heat-1)
+  Q_runsnow(no_heat) = Q_runsnow(no_heat-1)
 
   Q_trib(nr) = Q_out(no_heat)
   nrec_heat  = heat_cells*(ndays-1) + no_heat
+
   read(36,'(i5,3f6.1,2f7.4,f6.3,f7.1,f5.1)' &
          ,rec=nrec_heat) ncell &
          ,dbt(no_heat),tsoil(no_heat),ea(no_heat) &   
@@ -88,12 +89,10 @@ do nr=1,nreach ! Loop over reach in the network
   u(no_heat)      = u(no_heat-1)
   depth(no_heat)  = depth(no_heat-1)
   width(no_heat)  = width(no_heat-1)
-  dt(no_heat)     = dx(ncell)/u(no_heat)
+  dt(no_heat)     = dx(ncell) / u(no_heat)
 end do ! End of loop on reach
-
-!
 ! Call the water balance subroutine
 !
-  call Water_Balance
+call Water_Balance
 !
 END SUBROUTINE Read_Forcing

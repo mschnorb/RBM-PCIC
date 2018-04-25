@@ -162,7 +162,9 @@ do nr = 1,nreach
       nseg      = nseg + 1
       segment_cell(nr,nseg)   = ncell
       segment_cell(nr,nseg+1) = ncell
+      
       write(*,*) 'nndlta --',nr,nndlta,nseg,ncell,segment_cell(nr,nseg),dx(ncell),rmile1
+      
       x_dist(nr,nseg)=x_dist(nr,nseg-1)-dx(ncell)
 
       ! Write Segment List for mapping to temperature output (UW_JRY_2008/11/19)

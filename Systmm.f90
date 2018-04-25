@@ -29,7 +29,7 @@ integer, dimension(2):: ndltp=(/-1,-2/)
 integer, dimension(2):: nterp=(/2,3/)
 
 real             :: dt_calc,dt_total,hpd,q_dot,q_surf,z,w,x_calc
-real             :: Q_dstrb,Q_inflow,Q_outflow,Q_ratio,Q_trb,Q_trb_sum,Q_base,Q_runoff,myratio
+real             :: Q_dstrb,Q_inflow,Q_outflow,Q_ratio,Q_trb,Q_trb_sum,Q_base,Q_runoff,Q_runoffsnow
 real             :: T_dstrb,T_dstrb_load,T_trb_load,T_base_load,T_runoff_load
 real             :: rminsmooth
 real             :: T_0,T_dist,Thh,Tseuil,T_base,T_runoff
@@ -52,8 +52,8 @@ allocate (Q_in(heat_cells))
 allocate (Q_out(heat_cells))
 allocate (Q_run(heat_cells))
 allocate (Q_bas(heat_cells))
+allocate (Q_runsnow(heat_cells))
 allocate (Q_diff(heat_cells))
-allocate (Ratio(heat_cells))
 allocate (Q_trib(nreach))
 allocate (width(heat_cells))
 allocate (u(heat_cells))
@@ -88,11 +88,18 @@ write(out_file_ncdf, *) TRIM( adjustl(out_file_ncdf) )
 call CREATE
 
 ! My allocation to save in a netcdf file
-allocate( Qs_vec(heat_cells, nlvls) )
-allocate( Ts_vec(heat_cells, nlvls) )
+allocate( Qs_vec(heat_cells, nsegs) )
+allocate( Ts_vec(heat_cells, nsegs) )
+allocate( Tas_vec(heat_cells, nsegs) )
+allocate( Tsoil_vec(heat_cells, nsegs) )
+allocate( Width_vec(heat_cells, nsegs) )
+allocate( Depth_vec(heat_cells, nsegs) )
+allocate( Qrun_vec(heat_cells, nsegs) )
+allocate( Qbas_vec(heat_cells, nsegs) )
+allocate( Qrunsnow_vec(heat_cells, nsegs) )
 
-allocate( Qs_2d(nlon, nlat, nlvls) )
-allocate( Ts_2d(nlon, nlat, nlvls) )
+allocate( Qs_2d(nlon, nlat, nsegs) )
+allocate( Ts_2d(nlon, nlat, nsegs) )
 
 Qs_2d(:,:,:) = 1.e+20
 Ts_2d(:,:,:) = 1.e+20
@@ -102,7 +109,7 @@ n1    = 1
 n2    = 2
 nobs  = 0
 ndays = 0
-   clvls = 1
+csegs = 1
 xwpd  = nwpd
 hpd   = 1./xwpd
 
@@ -128,7 +135,7 @@ do nyear = start_year, end_year
          
          ! Read the hydrologic and meteorologic forcings
          call READ_FORCING
-
+         
          !!! Begin reach computations
          ! Begin cycling through the reaches
          do nr = 1, nreach
@@ -163,7 +170,6 @@ do nyear = start_year, end_year
 
             ! Begin cell computational loop
             do ns=1,no_celm(nr)
-!                if(time.eq.1989.0042) write(*,*) '   Begin of ns loop'
                
                DONE = .FALSE.
                
@@ -206,13 +212,12 @@ do nyear = start_year, end_year
                nncell = segment_cell(nr,nstrt_elm(ns))
 
                ! Initialize inflow, outflow, runoff and baseflow (usefull ?)
-               Q_inflow = Q_in(nncell)
+               Q_inflow  = Q_in(nncell)
                Q_outflow = Q_out(nncell)
                
                Q_runoff = Q_run(nncell)
                Q_base   = Q_bas(nncell)
-               
-               myratio = Ratio(nncell)
+               Q_runoffsnow = Q_runsnow(nncell)
 
                ! Set NCELL0 for purposes of tributary input
                ncell0 = nncell
@@ -240,15 +245,15 @@ do nyear = start_year, end_year
                   T_base        = tsoil(nncell)
                   if(T_base .le. 0.) T_base = 0.
                   Q_base        = Q_bas(nncell)
-!                  T_base_load   = Q_base*(1-myratio)*T_base + Q_base*myratio*0.0 - Q_base*T_0
                   T_base_load   = Q_base*T_base
                   
                   !!!! Add runflow
                   T_runoff      = dbt(nncell)
                   if(T_runoff .le. 0.) T_runoff = 0.
                   Q_runoff      = Q_run(nncell)
-!                  T_runoff_load = Q_runoff*(1-myratio)*T_runoff + Q_base*myratio*0.0 - Q_runoff*T_0
-                  T_runoff_load = Q_runoff*T_runoff
+                  Q_runoffsnow  = Q_runsnow(nncell)
+                  
+                  T_runoff_load = (Q_runoff - Q_runoffsnow)*T_runoff + Q_runoffsnow*0. ! Just to write the entire formula
                   
                   !!!! Add distributed flows. Temperature is assumed = 10. degC
                   if(Q_dstrb.gt.0.001) then
@@ -286,7 +291,7 @@ do nyear = start_year, end_year
                      Q_inflow  = Q_outflow - Q_dstrb - Q_trb_sum
                   end if ! End of if on ntribs
 
-                  !  Ratio (mostly when there are tributaries)
+                  !  Ratio (only when there are tributaries)
                   Q_ratio   = Q_inflow/Q_outflow
                   
 ! Original version of RBM
@@ -326,11 +331,18 @@ do nyear = start_year, end_year
                T_trib(nr)     = T_0
                
                ! Write netcdf data in 1D variables
-               Qs_vec(ncell, clvls)  = Q_outflow
-               Ts_vec(ncell, clvls)  = T_0
+               Qs_vec(ncell, csegs)    = Q_outflow
+               Ts_vec(ncell, csegs)    = T_0
+               Tas_vec(ncell, csegs)   = dbt(ncell)
+               Tsoil_vec(ncell, csegs) = T_base
+               Width_vec(ncell, csegs) = width(ncell)
+               Depth_vec(ncell, csegs) = depth(ncell)
+               Qrun_vec(ncell, csegs)  = Q_runoff
+               Qbas_vec(ncell, csegs)  = Q_base
+               Qrunsnow_vec(ncell, csegs) = Q_runoffsnow
                
-               clvls = clvls + 1
-               if (clvls.gt.nlvls) clvls = 1
+               csegs = csegs + 1
+               if (csegs.gt.nsegs) csegs = 1
                
                !   Write all temperature output UW_JRY_11/08/2013
                !   The temperature is output at the beginning of the 
@@ -358,17 +370,16 @@ do nyear = start_year, end_year
          Ts_2d(ivlon(i), ivlat(i), :) = Ts_vec(i,:)
       end do ! EOL on heat_cells (i)
       
-!       start(ndims)   = ndays
-!       call check( nf90_put_var(ncid, Tsid, Ts_2d, start = start, &
-!                               count = count) )
-!       call check( nf90_put_var(ncid, Qsid, Qs_2d, start = start, &
-!                               count = count) )
-      
       start(ndims) = ndays
-      call check( nf90_put_var(ncid, Tsid, Ts_vec, start = start, &
-                              count = count) )
-      call check( nf90_put_var(ncid, Qsid, Qs_vec, start = start, &
-                              count = count) )
+      call check( nf90_put_var(ncid, Tsid,    Ts_vec,    start = start, count = count) )
+      call check( nf90_put_var(ncid, Qsid,    Qs_vec,    start = start, count = count) )
+      call check( nf90_put_var(ncid, Tasid,   Tas_vec,   start = start, count = count) )
+      call check( nf90_put_var(ncid, Tsoilid, Tsoil_vec, start = start, count = count) )
+      call check( nf90_put_var(ncid, Widthid, Width_vec, start = start, count = count) )
+      call check( nf90_put_var(ncid, Depthid, Depth_vec, start = start, count = count) )
+      call check( nf90_put_var(ncid, Qrunid,  Qrun_vec,  start = start, count = count) )
+      call check( nf90_put_var(ncid, Qbasid,  Qbas_vec,  start = start, count = count) )
+      call check( nf90_put_var(ncid, Qrunsnowid,  Qrunsnow_vec,  start = start, count = count) )
       
    end do ! End of day loop (ND=1,365/366)
 end do ! End of year loop

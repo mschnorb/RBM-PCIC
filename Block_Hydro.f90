@@ -16,7 +16,7 @@ module Block_Hydro
     real, dimension(:),   allocatable  :: Q_diff
     real, dimension(:),   allocatable  :: Q_run
     real, dimension(:),   allocatable  :: Q_bas
-    real, dimension(:),   allocatable  :: Ratio
+    real, dimension(:),   allocatable  :: Q_runsnow
     real, dimension(:,:), allocatable  :: Q_nps
     real, dimension(:,:), allocatable  :: temp_trib
     real, dimension(:,:), allocatable  :: temp_nps,thermal

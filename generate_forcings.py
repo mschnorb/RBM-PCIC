@@ -106,8 +106,7 @@ with Dataset(vpath+energy) as efic:
    # AirTemp, VapPress, Short, Long etc...
    AirTemp    = np.array(efic.variables['AIR_TEMP'])
    SoilTemp   = np.array(efic.variables['SOIL_TEMP'])
-   #Ratio      = np.array(efic.variables['RATIO'])
-   Ratio      = np.copy(AirTemp)# To delete later...
+   #Ratio      = np.copy(AirTemp)# To delete later...
    VapPress   = np.array(efic.variables['VP'])
    Short      = np.array(efic.variables['SHORTWAVE'])
    Long       = np.array(efic.variables['LONGWAVE'])
@@ -126,9 +125,12 @@ with Dataset(vpath+energy) as efic:
 
    # Runoff and Baseflow
    Runoff     = np.array(efic.variables['RUNOFF'])
+   RunoffSnow = np.array(efic.variables['RUNOFF_SNOW'])
    Baseflow   = np.array(efic.variables['BASEFLOW'])
-   Runoff[   Runoff > 1e+19]   = np.nan
-   Baseflow[ Baseflow > 1e+19] = np.nan
+   
+   Runoff[     Runoff > 1e+19]     = np.nan
+   RunoffSnow[ RunoffSnow > 1e+19] = np.nan
+   Baseflow[   Baseflow > 1e+19]   = np.nan
 
 ### Grid Area to runoff and baseflow convertion
 with Dataset(gpath+domain) as dfic:
@@ -141,8 +143,9 @@ with Dataset(gpath+domain) as dfic:
    myGrid     = GridArea[ ilat, :]
    myGrid     = myGrid[:, ilon]
 
-   Runoff     = Runoff    * 1e-3 * myGrid / 86400 # In meters3.s-1
-   Baseflow   = Baseflow  * 1e-3 * myGrid / 86400 # In meters3.s-1
+   Runoff     = Runoff     * 1e-3 * myGrid / 86400 # In meters3.s-1
+   RunoffSnow = RunoffSnow * 1e-3 * myGrid / 86400 # In meters3.s-1
+   Baseflow   = Baseflow   * 1e-3 * myGrid / 86400 # In meters3.s-1
 
 ### Compute the Annual temperature
 navg    = 365
@@ -288,8 +291,9 @@ for t in range(len(stime)):
       Qout = QFlow[t,ioutq[n]]
       #Qout = QRunoff[t,ioutq[n]] + QBaseflow[t,ioutq[n]]
          
-      Qrun = myUH[n]*Runoff[t,irlat[n],irlon[n]]
-      Qbas = myUH[n]*Baseflow[t,irlat[n],irlon[n]]
+      Qrun     = myUH[n] * Runoff[t,irlat[n],irlon[n]]
+      QrunSnow = myUH[n] * RunoffSnow[t,irlat[n],irlon[n]]
+      Qbas     = myUH[n] * Baseflow[t,irlat[n],irlon[n]]
       
       # Area, Depth, Width
       mydepth, mywidth = 0.2307 * Qout**0.4123, 6.6588 * Qout**0.4967
@@ -298,13 +302,9 @@ for t in range(len(stime)):
 
       Test = Qout - Qrun - Qbas
       Test = '{:12.5f}'.format(Test)
-
-      Qout,Qrun,Qbas = '{:12.5f}'.format(Qout), '{:12.5f}'.format(Qrun), '{:12.5f}'.format(Qbas)
       
-      # Ratio of melted water
-      myRatio = Ratio[t,irlat[n],irlon[n]]
-      myRatio = '{:12.5f}'.format(myRatio)
-
+      Qout,Qrun,QrunSnow,Qbas = '{:12.5f}'.format(Qout), '{:12.5f}'.format(Qrun), '{:12.5f}'.format(QrunSnow), '{:12.5f}'.format(Qbas)
+      
       # Velocity
       Vel   = Velocity[ivlat[n],ivlon[n]]
       Vel   = format(Vel, "6.2f")
@@ -312,7 +312,7 @@ for t in range(len(stime)):
       tstep = '{:8d}'.format(t+1)
       nnode = '{:8d}'.format(mynode)
 
-      ofic.write(str(tstep)+str(nnode)+str(Qout)+str(Qrun)+str(Qbas)+str(myRatio)+str(mydepth)+str(mywidth)+str(Vel)+" ")
+      ofic.write(str(tstep)+str(nnode)+str(Qout)+str(Qrun)+str(Qbas)+str(QrunSnow)+str(mydepth)+str(mywidth)+str(Vel)+" ")
 
 ofic.close()
 ############# End of Write Flow forcing file

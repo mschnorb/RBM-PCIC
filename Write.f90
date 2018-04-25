@@ -4,15 +4,13 @@ use netcdf
 use Block_Netcdf
 
 Implicit NONE
-!
+
 integer :: year, month, day
 integer :: nd,nr,ncell,ns 
 real    :: Q_inflow,Q_outflow,Q_runoff,Q_base,Diff
 real    :: T_0,T_dist
-! real(8) :: time
 real    :: T_head
 real    :: dbt
-!
 
 Diff = Q_outflow - Q_runoff - Q_base
 
