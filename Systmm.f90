@@ -32,11 +32,12 @@ real             :: dt_calc,dt_total,hpd,q_dot,q_surf,z,w,x_calc
 real             :: Q_dstrb,Q_inflow,Q_outflow,Q_ratio,Q_trb,Q_trb_sum,Q_base,Q_runoff,Q_runoffsnow
 real             :: T_dstrb,T_dstrb_load,T_trb_load,T_base_load,T_runoff_load
 real             :: rminsmooth
-real             :: T_0,T_dist,Thh,Tseuil,T_base,T_runoff
+real             :: T_0,T_dist,Thh,Tseuil,T_tribs,T_base,T_runoff,T_snow
 real             :: x,xd_year,xwpd
 real             :: tntrp
 real             :: dt_ttotal
 real,dimension(4):: ta,xa
+real             :: local_w, local_z, oldT_runoff, oldT_base
 
 real,dimension(:),allocatable     :: T_head,T_smth,T_trib
 
@@ -143,28 +144,28 @@ do nyear = start_year, end_year
 
             nc_head = segment_cell(nr,1)
             
-            !!! Mohseni relation for T_head
-            ! Determine smoothing parameters (UW_JRY_2011/06/21)
-            rminsmooth = 1.0 - smooth_param(nr)
-            T_smth(nr) = rminsmooth*T_smth(nr) + smooth_param(nr)*dbt(nc_head)
-
-            ! Variable Mohseni parameters (UW_JRY_2011/06/16)
-            T_head(nr) = mu(nr) + (alphaMu(nr) &
-                        /(1.+exp(gmma(nr)*(beta(nr)-T_smth(nr))))) 
+!!! Mohseni relation for T_head
+!            ! Determine smoothing parameters (UW_JRY_2011/06/21)
+!            rminsmooth = 1.0 - smooth_param(nr)
+!            T_smth(nr) = rminsmooth*T_smth(nr) + smooth_param(nr)*dbt(nc_head)
+!
+!            ! Variable Mohseni parameters (UW_JRY_2011/06/16)
+!            T_head(nr) = mu(nr) + (alphaMu(nr) &
+!                        /(1.+exp(gmma(nr)*(beta(nr)-T_smth(nr))))) 
             
-            !!! Other method to calculate T_head
-            ! Simple pseudo-linear relation
-            Tseuil = 12.
-            Thh = max(0., tavg(nc_head) + 1.2*( dbt(nc_head) - tavg(nc_head)) )
-            if (Thh .gt. Tseuil) then
-               Thh = min( Thh, Tseuil + 1.2*(dbt(nc_head) - Tseuil) )
-            end if
-!             T_head(nr) = Thh
+!!! Other method to calculate T_head
+!            ! Simple pseudo-linear relation
+!            Tseuil = 12.
+!            Thh = max(0., tavg(nc_head) + 1.2*( dbt(nc_head) - tavg(nc_head)) )
+!            if (Thh .gt. Tseuil) then
+!               Thh = min( Thh, Tseuil + 1.2*(dbt(nc_head) - Tseuil) )
+!            end if
+!            T_head(nr) = Thh
             
             !!! T_head = T_soil
             T_head(nr) = tsoil(nc_head)
-
             if (T_head(nr) .lt. 0.) T_head(nr) = 0.
+
             temp(nr,0,n1) = T_head(nr)
             temp(nr,1,n1) = T_head(nr)
 
@@ -229,13 +230,19 @@ do nyear = start_year, end_year
                   
                   z = depth(nncell)
                   w = width(nncell)
+                  !if (z .eq. 0.) z = 0.01
+                  !if (w .eq. 0.) w = 0.01
                   
                   ! Compute the net heat flux
                   call energy(T_0,q_surf,nncell)
 
+                  T_0 = T_0 + q_surf*dt_calc / (rho*Cp*z)
+                  if(T_0 .le. 0.) T_0 = 0.
+                  
 ! Original version of RBM
-!                   q_dot = (q_surf/(z*rho*Cp))
-!                   T_0   = T_0 + q_dot*dt_calc
+!                   q_dot=(q_surf/(z*rfac))
+!                   T_0=T_0+q_dot*dt_calc
+!                   if(T_0.lt.0.0) T_0=0.0
 
                   !!!! Read inflow and outflow (assumed equal for the moment)
                   Q_inflow      = Q_out(nncell)
@@ -244,16 +251,36 @@ do nyear = start_year, end_year
                   !!!! Add baseflow
                   T_base        = tsoil(nncell)
                   if(T_base .le. 0.) T_base = 0.
+
                   Q_base        = Q_bas(nncell)
+                  if(Q_base .gt. 0.) then
+                     local_z   = 0.2307 * Q_base**0.4123 
+                     oldT_base = T_base
+                     T_base    = T_base + q_surf*dt_calc / (rho*Cp*local_z)
+                     
+                     if(T_base .le. 0.) T_base = 0.
+                  end if
+                  
                   T_base_load   = Q_base*T_base
                   
                   !!!! Add runflow
                   T_runoff      = dbt(nncell)
                   if(T_runoff .le. 0.) T_runoff = 0.
+                  
                   Q_runoff      = Q_run(nncell)
                   Q_runoffsnow  = Q_runsnow(nncell)
+                  if(Q_runoff .gt. 0.) then
+                     local_z     = 0.2307 * Q_runoff**0.4123 
+                     oldT_runoff = T_runoff
+                     T_runoff    = T_runoff + q_surf*dt_calc / (rho*Cp*local_z)
+                     T_snow      = 0.       + q_surf*dt_calc / (rho*Cp*local_z)
+                     
+                     if(T_runoff .le. 0.) T_runoff = 0.
+                     if(T_snow   .le. 0.) T_snow   = 0.
+                  end if
                   
                   T_runoff_load = (Q_runoff - Q_runoffsnow)*T_runoff + Q_runoffsnow*0. ! Just to write the entire formula
+                  !T_runoff_load = Q_runoff*T_runoff
                   
                   !!!! Add distributed flows. Temperature is assumed = 10. degC
                   if(Q_dstrb.gt.0.001) then
@@ -261,6 +288,7 @@ do nyear = start_year, end_year
                   else
                      T_dstrb    = 10.0
                   end if
+                  
                   Q_dstrb       = Q_diff(nncell)
                   T_dstrb_load  = Q_dstrb*T_dstrb
 
@@ -279,7 +307,11 @@ do nyear = start_year, end_year
 
                            ! Update water temperature with tributary input
                            if( .not.isnan(T_trib(nr_trib)) ) then
-                              T_trb_load   = (Q_trb*T_trib(nr_trib))  &
+                              
+                              T_tribs      = T_trib(nr_trib) + q_surf*dt_calc / (rho*Cp*z)
+                              if(T_tribs .le. 0.) T_tribs = 0.
+
+                              T_trb_load   = (Q_trb*T_tribs)  &
                                            +  T_trb_load
                            end if
                         end if ! End of if on existence of tributary
@@ -304,8 +336,7 @@ do nyear = start_year, end_year
                   T_0  = T_0*(Q_inflow - Q_runoff - Q_base)  / Q_outflow &
                        + T_trb_load                          / Q_outflow &
                        + T_runoff_load                       / Q_outflow &
-                       + T_base_load                         / Q_outflow &
-                       + q_surf / (rho*Cp*z*Q_outflow)
+                       + T_base_load                         / Q_outflow
 
                   ! T_0 minimum value is 0.5 (double check ?!?)
                   if (T_0.lt.0.) T_0 = 0.
@@ -317,10 +348,10 @@ do nyear = start_year, end_year
                   nncell = segment_cell(nr,nseg)
 
                   ! Reset tributary flag if this is a new cell
-                  if(ncell0.ne.nncell) then
-                     ncell0 = nncell
+                  if(ncell0 .ne. nncell) then
+                     ncell0   = nncell
                      Q_inflow = Q_in(nncell)
-                     DONE = .FALSE.
+                     DONE     = .FALSE.
                   end if
 
                   ! ... ?
@@ -349,8 +380,7 @@ do nyear = start_year, end_year
                !   reach.  It is, of course, possible to get output at
                !   other points by some additional code that keys on the
                !   value of ndelta (now a vector)(UW_JRY_11/08/2013)
-!                call WRITE(time,nd,nr,ncell,ns,T_0,T_head(nr),dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
-               call WRITE(year,month,day,nd,nr,ncell,nncell,T_0,T_base,dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
+               !call WRITE(year,month,day,nd,nr,ncell,nncell,T_0,T_base,dbt(ncell),Q_inflow,Q_outflow,Q_runoff,Q_base)
 
             end do ! End of computational element loop (ns=1,no_celm(nr))
          end do ! End of reach loop
@@ -364,15 +394,9 @@ do nyear = start_year, end_year
          4750 format(f10.4,10(i4,f8.0))
       end do ! End of weather period loop (NDD=1,NWPD)
       
-      !!! Convert 1D array to 2D and write them in the ncdf file
-      do i = 1,heat_cells
-         Qs_2d(ivlon(i), ivlat(i), :) = Qs_vec(i,:)
-         Ts_2d(ivlon(i), ivlat(i), :) = Ts_vec(i,:)
-      end do ! EOL on heat_cells (i)
-      
       start(ndims) = ndays
-      call check( nf90_put_var(ncid, Tsid,    Ts_vec,    start = start, count = count) )
       call check( nf90_put_var(ncid, Qsid,    Qs_vec,    start = start, count = count) )
+      call check( nf90_put_var(ncid, Tsid,    Ts_vec,    start = start, count = count) )
       call check( nf90_put_var(ncid, Tasid,   Tas_vec,   start = start, count = count) )
       call check( nf90_put_var(ncid, Tsoilid, Tsoil_vec, start = start, count = count) )
       call check( nf90_put_var(ncid, Widthid, Width_vec, start = start, count = count) )

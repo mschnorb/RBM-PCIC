@@ -11,6 +11,7 @@ objects = rbm10_VIC.o Begin.o Systmm.o Particle_Track.o \
           Date_Utility.o Error_Handler.o File_Utility.o \
           Water_Balance.o Write.o CheckStatus.o
 f90comp = gfortran
+##keys = -g -fbacktrace -Wall -fcheck=all -c -I /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/include
 keys = -c -I /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/include
 # Makefile
 rbm10_VIC: $(objects)

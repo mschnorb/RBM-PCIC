@@ -12,6 +12,7 @@ real    :: res = 0.0625
 character (len=10) :: yyyymmdd
 character (len=21) :: time_units
 
+
 call check( nf90_create( adjustl(out_file_ncdf), 0, ncid) )
 
 ncells = heat_cells
@@ -20,64 +21,25 @@ nlon   = (maxval(llon) - minval(llon)) / res + 1
 nsegs  = maxval(ndelta)
 
 allocate( cells(ncells) )
-allocate( lats(nlat) )
-allocate( lons(nlon) )
 allocate( segs(nsegs) )
 
 !!! Create lat and lon vectors (we assume a resolution here...) 
 cells(:) = (/(i, i = 1,ncells, 1)/)
-lons(:) = (/(i, i = 0,nlon, 1)/)*res + minval(llon)
-lats(:) = (/(i, i = 0,nlat, 1)/)*res + minval(llat)
 segs(:) = (/(i, i = 1,nsegs, 1)/)
-
-!!! Vector to convert from 1d to 2d : ivlon, ivlat
-allocate( ivlon(heat_cells) )
-allocate( ivlat(heat_cells) )
-
-do i = 1,heat_cells
-   mylon    = llon(i)
-   mylat    = llat(i)
-   
-   do j = 1,nlon
-      if (lons(j) .eq. mylon) then
-         loc = j
-         exit
-      end if
-   end do
-   ivlon(i) = loc
-   
-   do j = 1,nlat
-      if (lats(j) .eq. mylat) then
-         loc = j
-         exit
-      end if
-   end do
-   ivlat(i) = loc
-end do ! EOL on heat_cells
 
 !!! Define the dimensions
 call check( nf90_def_dim(ncid, 'time', NF90_UNLIMITED, t_dimid) )
 call check( nf90_def_dim(ncid, 'cell', ncells, cell_dimid) )
-! call check( nf90_def_dim(ncid, 'lon', nlon, lon_dimid) )
-! call check( nf90_def_dim(ncid, 'lat', nlat, lat_dimid) )
 call check( nf90_def_dim(ncid, 'seg', nsegs, seg_dimid) )
 
 !!! Define the coordinate variables
 call check( nf90_def_var(ncid, 'time', NF90_INT, t_dimid, tid) )
 call check( nf90_def_var(ncid, 'cell', NF90_INT, cell_dimid, cellid) )
-! call check( nf90_def_var(ncid, 'lon', NF90_REAL, lon_dimid, lonid) )
-! call check( nf90_def_var(ncid, 'lat', NF90_REAL, lat_dimid, latid) )
 call check( nf90_def_var(ncid, 'seg', NF90_INT,  seg_dimid, segid) )
 
 !!! Assign units attributes to coordinate variables
 call check( nf90_put_att(ncid, cellid, 'units', '-') )
 call check( nf90_put_att(ncid, cellid, 'long_name', 'Grid cell number') )
-
-! call check( nf90_put_att(ncid, latid, 'units', 'degrees_north') )
-! call check( nf90_put_att(ncid, latid, 'long_name', 'Latitude coordinate of grid cell') )
-! 
-! call check( nf90_put_att(ncid, lonid, 'units', 'degrees_east') )
-! call check( nf90_put_att(ncid, lonid, 'long_name', 'Longitude coordinate of grid cell') )
 
 call check( nf90_put_att(ncid, segid, 'units', '-') )
 call check( nf90_put_att(ncid, segid, 'long_name', 'Segments in the grid cell') )
@@ -89,7 +51,6 @@ call check( nf90_put_att(ncid, tid, 'units', time_units) )
 call check( nf90_put_att(ncid, tid, 'long_name', 'time') )
 
 !!! The dimids array
-! dimids = (/ lon_dimid, lat_dimid, lvl_dimid, t_dimid /)
 dimids = (/ cell_dimid, seg_dimid, t_dimid /)
      
 !!! Define the netCDF variables for the pressure and temperature data
@@ -146,14 +107,10 @@ call check( nf90_enddef(ncid) )
 
 !!! Write the coordinate variable data
 call check( nf90_put_var(ncid, cellid, cells) )
-! call check( nf90_put_var(ncid, latid, lats) )
-! call check( nf90_put_var(ncid, lonid, lons) )
 call check( nf90_put_var(ncid, segid, segs) )
 
 
 !!! These settings tell netcdf to write one timestep of data
-! count = (/ nlon, nlat, nlvls, 1 /)
-! start = (/ 1, 1, 1, 1 /)
 count = (/ ncells, nsegs, 1 /)
 start = (/ 1, 1, 1 /)
 

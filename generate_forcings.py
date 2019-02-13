@@ -4,6 +4,7 @@ import os
 import sys
 import math
 import numpy as np
+import xarray as xr
 from netCDF4 import Dataset
 import configparser
 Config = configparser.ConfigParser()
@@ -62,38 +63,20 @@ with Dataset(ppath+direction) as pfic:
    vlon     = np.array(pfic.variables['lon'])
 
 ### Drainage Area
-with Dataset(ppath+pour_points) as afic:
-   # Local Unit Hydrograph
-   UH    = np.array(afic.variables['unit_hydrograph']) # Dims = (timesteps=100, sources, tracers=1)
+afic = Dataset(ppath+pour_points)
+# Local Unit Hydrograph
+UH    = afic.variables['unit_hydrograph'] # Dims = (timesteps=100, sources, tracers=1)
 
-   outlet_number = np.array(afic.variables['outlet_number'])
-   source2outlet_ind = np.array(afic.variables['source2outlet_ind'])
+outlet_number = afic.variables['outlet_number']
+source2outlet_ind = afic.variables['source2outlet_ind']
 
-   outlet_lat = np.array(afic.variables['outlet_lat'])
-   outlet_lon = np.array(afic.variables['outlet_lon'])
+outlet_lat = afic.variables['outlet_lat']
+outlet_lon = afic.variables['outlet_lon']
 
-   source_lat = np.array(afic.variables['source_lat'])
-   source_lon = np.array(afic.variables['source_lon'])
+source_lat = afic.variables['source_lat']
+source_lon = afic.variables['source_lon']
 
-   # Watershed area
-   Area  = np.array(afic.variables['outlet_upstream_area']) # Same lat/lon as Streamflow
-   Area  = Area / 1e6 # Convert from m2 to km2
-   Depth = 0.93 * Area**0.490  # From Yearsley 2012 (in m)
-   Width = 0.08 * Area**0.396  # From Yearsley 2012 (in m)
-
-###### Forcings water
-#### Streamflow from Runoff
-#with Dataset(rpath+runoff) as wfic:
-   #QRunoff = np.array(wfic.variables['streamflow']) # In m3.s-1
-   #stime   = np.array(wfic.variables['time'])
-   #slat    = np.array(wfic.variables['lat'])
-   #slon    = np.array(wfic.variables['lon'])
-
-#### Streamflow from Baseflow
-#with Dataset(rpath+baseflow) as wfic:
-   #QBaseflow = np.array(wfic.variables['streamflow'])
-   
-### Streamflow from Runoff and Baseflow
+### Forcings water : Streamflow
 with Dataset(rpath+flow) as wfic:
    QFlow   = np.array(wfic.variables['streamflow']) # In m3.s-1
    stime   = np.array(wfic.variables['time'])
@@ -101,63 +84,39 @@ with Dataset(rpath+flow) as wfic:
    slon    = np.array(wfic.variables['lon'])
 
 
-###### Forcings energy and local water fluxes
+####### Forcings energy and local water fluxes
 with Dataset(vpath+energy) as efic:
-   # AirTemp, VapPress, Short, Long etc...
-   AirTemp    = np.array(efic.variables['AIR_TEMP'])
-   SoilTemp   = np.array(efic.variables['SOIL_TEMP'])
-   #Ratio      = np.copy(AirTemp)# To delete later...
-   VapPress   = np.array(efic.variables['VP'])
-   Short      = np.array(efic.variables['SHORTWAVE'])
-   Long       = np.array(efic.variables['LONGWAVE'])
-   Density    = np.array(efic.variables['DENSITY'])
-   Press      = np.array(efic.variables['PRESSURE'])
-   Wind       = np.array(efic.variables['WIND'])
-   elat       = np.array(efic.variables['lat'])
-   elon       = np.array(efic.variables['lon'])
-   etime      = efic.variables['time']
-   ndays   = len(etime)
-
-   VapPress    = VapPress * 10 # kPa to hPa
-
-   SoilTemp[ SoilTemp == 1e+20 ] = np.nan
-   SoilTemp = SoilTemp[:,0,:,:]
+   efic = Dataset(vpath+energy)
+   elat       = np.array( efic.variables['lat'] )
+   elon       = np.array( efic.variables['lon'] )
+   etime      = np.array( efic.variables['time'] )
 
    # Runoff and Baseflow
    Runoff     = np.array(efic.variables['RUNOFF'])
    RunoffSnow = np.array(efic.variables['RUNOFF_SNOW'])
    Baseflow   = np.array(efic.variables['BASEFLOW'])
-   
-   Runoff[     Runoff > 1e+19]     = np.nan
-   RunoffSnow[ RunoffSnow > 1e+19] = np.nan
-   Baseflow[   Baseflow > 1e+19]   = np.nan
+
+Runoff[     Runoff > 1e+19]     = np.nan
+RunoffSnow[ RunoffSnow > 1e+19] = np.nan
+Baseflow[   Baseflow > 1e+19]   = np.nan
 
 ### Grid Area to runoff and baseflow convertion
 with Dataset(gpath+domain) as dfic:
-   GridArea   = np.array(dfic.variables['area']) # In m2
+   dfic = Dataset(gpath+domain)
+   GridArea   = dfic.variables['area'] # In m2
    glat       = np.array(dfic.variables['lat'])
    glon       = np.array(dfic.variables['lon'])
 
-   ilat = np.where( (min(elat)<=glat) & (glat<=max(elat)) )[0]
-   ilon = np.where( (min(elon)<=glon) & (glon<=max(elon)) )[0]
-   myGrid     = GridArea[ ilat, :]
-   myGrid     = myGrid[:, ilon]
+ilat = np.where( (float(elat.min())<=glat) & (glat<=float(elat.max())) )[0]
+ilon = np.where( (float(elon.min())<=glon) & (glon<=float(elon.max())) )[0]
+myGrid     = GridArea[ ilat, :]
+myGrid     = myGrid[:, ilon]
+del GridArea
 
-   Runoff     = Runoff     * 1e-3 * myGrid / 86400 # In meters3.s-1
-   RunoffSnow = RunoffSnow * 1e-3 * myGrid / 86400 # In meters3.s-1
-   Baseflow   = Baseflow   * 1e-3 * myGrid / 86400 # In meters3.s-1
-
-### Compute the Annual temperature
-navg    = 365
-AirYear = np.copy(AirTemp)
-
-for i in range(ndays):
-   if( i < round(navg/2)):
-      AirYear[i,:,:] = np.nanmean(AirTemp[0:navg-1,:,:], axis = 0)
-   elif( i > (ndays - round(navg/2)) ):
-      AirYear[i,:,:] = np.nanmean(AirTemp[ndays-navg-1:ndays-1,:,:], axis = 0)
-   else:
-      AirYear[i,:,:] = np.nanmean(AirTemp[ i-round(navg/2):i+round(navg/2)+1,:,:], axis = 0)
+Runoff     = Runoff     * 1e-3 * myGrid / 86400 # In meters3.s-1
+RunoffSnow = RunoffSnow * 1e-3 * myGrid / 86400 # In meters3.s-1
+Baseflow   = Baseflow   * 1e-3 * myGrid / 86400 # In meters3.s-1
+del myGrid
 
 ### Network
 nfic  = open(opath+network, 'r')
@@ -209,7 +168,6 @@ for l in range(len(lines)):
          OutLon.append(float(outline[9]))
 
 nfic.close()
-nnodes = len(Node)
 ############ End of Open an read direction file
 ################################################
 ################################################
@@ -228,11 +186,11 @@ myUH  = []   # ...
 print("Write Flow forcing file")
 ofic = open(opath+fflow, "w")
 for t in range(len(stime)):
-   #print("Flow forcings file t:",t)
-   for n,mynode,mylat,mylon in zip(range(nnodes),Node,nlat,nlon):
-      iinq.append([])
+   for n,mynode,mylat,mylon in zip(range(len(Node)),Node,nlat,nlon):
 
       if t == 0: # We need to do that only once
+         iinq.append([])
+         
          # Output streamflow
          tlat = np.isin(slat, mylat)
          tlon = np.isin(slon, mylon)
@@ -264,8 +222,7 @@ for t in range(len(stime)):
          iUH          = np.where(sources_ilat & sources_ilon)[0]
 
          myUH.append(UH[0,iUH,0][0]) # Append to the list of UH coef.
-
-
+         
          if mynode in HeadCell: # We have a headwater : Qin = 0.
             ... # Do nothing, Qin = 0.
             
@@ -283,41 +240,59 @@ for t in range(len(stime)):
                olat  = OutLat[i]
                olon  = OutLon[i]
 
-               nolat = np.isin(slat, olat)
-               nolon = np.isin(slon, olon)
-               new_sii  = np.where(nolat & nolon)[0]
+               nolat   = np.isin(slat, olat)
+               nolon   = np.isin(slon, olon)
+               new_sii = np.where(nolat & nolon)[0]
                iinq[n].append(new_sii[0])
 
-      Qout = QFlow[t,ioutq[n]]
-      #Qout = QRunoff[t,ioutq[n]] + QBaseflow[t,ioutq[n]]
-         
+      Qout     = QFlow[t,ioutq[n]]
       Qrun     = myUH[n] * Runoff[t,irlat[n],irlon[n]]
       QrunSnow = myUH[n] * RunoffSnow[t,irlat[n],irlon[n]]
       Qbas     = myUH[n] * Baseflow[t,irlat[n],irlon[n]]
-      
-      # Area, Depth, Width
-      mydepth, mywidth = 0.2307 * Qout**0.4123, 6.6588 * Qout**0.4967
-      mydepth, mywidth = Depth[ioutq[n]],Width[ioutq[n]]
-      mydepth, mywidth = '{:6.1f}'.format(mydepth), '{:7.1f}'.format(mywidth)
-
-      Test = Qout - Qrun - Qbas
-      Test = '{:12.5f}'.format(Test)
       
       Qout,Qrun,QrunSnow,Qbas = '{:12.5f}'.format(Qout), '{:12.5f}'.format(Qrun), '{:12.5f}'.format(QrunSnow), '{:12.5f}'.format(Qbas)
       
       # Velocity
       Vel   = Velocity[ivlat[n],ivlon[n]]
-      Vel   = format(Vel, "6.2f")
+      Vel   = format(Vel, "12.5f")
 
       tstep = '{:8d}'.format(t+1)
       nnode = '{:8d}'.format(mynode)
 
-      ofic.write(str(tstep)+str(nnode)+str(Qout)+str(Qrun)+str(Qbas)+str(QrunSnow)+str(mydepth)+str(mywidth)+str(Vel)+" ")
+      #ofic.write(str(tstep)+str(nnode)+str(Qout)+str(Qrun)+str(Qbas)+str(QrunSnow)+str(mydepth)+str(mywidth)+str(Vel)+"")
+      ofic.write(str(tstep)+str(nnode)+str(Qout)+str(Qrun)+str(Qbas)+str(QrunSnow)+str(Vel)+"  ")
 
-ofic.close()
-############# End of Write Flow forcing file
-#################################################
-#################################################
+ofic.close() # Output file
+afic.close()
+ 
+del Runoff; del RunoffSnow; del Baseflow ; del QFlow
+############## End of Write Flow forcing file
+##################################################
+##################################################
+
+####### Forcings energy and local water fluxes
+with Dataset(vpath+energy) as efic:
+
+   # AirTemp, VapPress, Short, Long etc...
+   AirTemp    = np.array( efic.variables['AIR_TEMP'] )
+   VapPress   = np.array( efic.variables['VP'] )
+   Short      = np.array( efic.variables['SHORTWAVE'] )
+   Long       = np.array( efic.variables['LONGWAVE'] )
+   Density    = np.array( efic.variables['DENSITY'] )
+   Press      = np.array( efic.variables['PRESSURE'] )
+   Wind       = np.array( efic.variables['WIND'] )
+   ndays      = len(etime)
+   
+   SoilTemp   = np.array( efic.variables['SOIL_TEMP'][:,1,:,:])
+   SoilTemp[ SoilTemp == 1e+20 ] = np.nan
+   #SoilTemp = SoilTemp[:,1,:,:]
+
+VapPress   = VapPress * 10. # kPa to hPa
+
+#### Compute the Annual temperature
+navg    = 365
+AirYear = np.copy(AirTemp)
+
 
 ################################################
 ################################################

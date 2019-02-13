@@ -28,9 +28,10 @@ SUBROUTINE Energy(T_surf,q_surf,ncell)
    SF = 1. ! Shading Factor due to vegetation (Solar)
    FW = 1. ! Sheltering Factor due to vegetation (Wind)
 
-   T_fit(1)=T_surf-1.0
-   T_fit(2)=T_surf+1.0
-   do i=1,2
+   T_fit(1) = T_surf - 1.0
+   T_fit(2) = T_surf + 1.0
+   
+   do i = 1,2
       ! Net solar short-wave radiation (incoming - reflected)
       qs = 0.97 * SF * q_ns(ncell)
 
@@ -38,11 +39,11 @@ SUBROUTINE Energy(T_surf,q_surf,ncell)
       ql = q_na(ncell) - 0.97 * Boltzmann * (T_fit(i)+273.15)**4
 
       ! Flux of latent heat (evaporation)
-         Le   = 2499.64 - 2.51 * T_fit(i)               ! Latent heat of vaporization
-         Kl   = 0.211 + 0.103 * wind(ncell) * FW        ! Turbulent exchange of water vapor
-         Kl   = Kl / (86.4E6)                           ! mm.d**-1 to m.s**-1
-         esat = 2.1718E8*EXP(-4157.0/(T_fit(i)+239.09)) ! Vapor pressure at saturation
-         E    = Kl * (esat - ea(ncell))                 ! Evaporation rate
+         Le   = 2499.64 - 2.51 * T_fit(i)                 ! Latent heat of vaporization
+         Kl   = 0.211 + 0.103 * wind(ncell) * FW          ! Turbulent exchange of water vapor
+         Kl   = Kl / (86.4E6)                             ! mm.d**-1 to m.s**-1
+         esat = 2.1718E8 * EXP(-4157.0/(T_fit(i)+239.09)) ! Vapor pressure at saturation
+         E    = Kl * (esat - ea(ncell))                   ! Evaporation rate
       qe = - rho * E * Le
 
       ! Flux of sensible heat
@@ -52,7 +53,7 @@ SUBROUTINE Energy(T_surf,q_surf,ncell)
       ! qc is not considered here. Assumed to be 5% of the net solar radiative
       ! flux in Wu et al. (2012).
 
-      q_fit(i)= qs + ql + qe + qh
+      q_fit(i) =  qs + ql + qe + qh
    end do
 
 !
@@ -62,9 +63,9 @@ SUBROUTINE Energy(T_surf,q_surf,ncell)
 !     These results can be used to estimate the "equilibrium" 
 !     temperature and linear rate constant.
 !
-   A=(q_fit(1)-q_fit(2))/(T_fit(1)-T_fit(2))
-   q_surf=0.5*(q_fit(1)+q_fit(2))
-   B=(q_surf/A)-(T_fit(1)+T_fit(2))/2.
+   A      = (q_fit(1)-q_fit(2)) / (T_fit(1)-T_fit(2))
+   q_surf = 0.5 * (q_fit(1) + q_fit(2))
+   B      = (q_surf/A) - (T_fit(1)+T_fit(2)) / 2.
 !
 !     ******************************************************
 !               Return to Subroutine RIVMOD

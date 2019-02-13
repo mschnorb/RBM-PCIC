@@ -20,11 +20,21 @@ do nr=1,nreach ! Loop over reach in the network
     nrec_flow = flow_cells*(ndays-1) + no_flow
     nrec_heat = heat_cells*(ndays-1) + no_heat
 
-    read(35,'(2i8,4f12.5,f6.1,f7.1,f6.2)' &
-           ,rec=nrec_flow) nnd,ncell &
-           ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Q_runsnow(no_heat) &  
-           ,depth(no_heat),width(no_heat),u(no_heat)
+!     read(35,'(2i8,4f12.5,3f8.3)' &
+!            ,rec=nrec_flow) nnd,ncell &
+!            ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Q_runsnow(no_heat) &  
+!            ,depth(no_heat),width(no_heat),u(no_heat)
            
+    read(35,'(2i8,5f12.5)' &
+           ,rec=nrec_flow) nnd,ncell &
+           ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Q_runsnow(no_heat) &
+           ,u(no_heat)
+           
+    depth(no_heat) = 0.2307 * Q_out(no_heat)**0.4123
+    width(no_heat) = 6.6588 * Q_out(no_heat)**0.4967
+    !u(no_heat)     = 1.5
+    u(no_heat)     = Q_out(no_heat) / (depth(no_heat) * width(no_heat))
+
     Q_diff(no_heat) = 0. ! We will deal with that later. If artificial lateral inflow.
 
     if(u(no_heat).lt.0.01) u(no_heat)=0.01
