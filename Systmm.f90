@@ -30,9 +30,10 @@ integer, dimension(2):: nterp=(/2,3/)
 
 real             :: dt_calc,dt_total,hpd,q_dot,q_surf,z,w,x_calc
 real             :: Q_dstrb,Q_inflow,Q_outflow,Q_ratio,Q_trb,Q_trb_sum,Q_base,Q_runoff,Q_runoffsnow,Q_local
-real             :: T_dstrb,T_dstrb_load,T_trb_load,T_base_load,T_runoff_load
+real             :: T_trb_load,T_local_load
+!real             :: T_dstrb,T_dstrb_load,T_runoff_load,T_base_load
 real             :: rminsmooth
-real             :: T_0,T_dist,Thh,Tseuil,T_tribs,T_base,T_runoff,T_snow,T_mohs
+real             :: T_0,T_dist,Thh,Tseuil,T_tribs,T_base,T_runoff,T_snow,T_mohs,T_local
 real             :: x,xd_year,xwpd
 real             :: tntrp
 real             :: dt_ttotal
@@ -303,17 +304,18 @@ do nyear = start_year, end_year
                   T_runoff      = dbt(nncell)
                   if(T_runoff .le. 0.) T_runoff = 0.
                   T_snow = 0.
-                  T_dstrb = Q_base*T_base                      / Q_local &
-                          + (Q_runoff - Q_runoffsnow)*T_runoff / Q_local &
-                          + Q_runoffsnow*T_snow                / Q_local
+                  T_local = Q_base * T_base                      / Q_local &
+                          + (Q_runoff - Q_runoffsnow) * T_runoff / Q_local &
+                          + Q_runoffsnow * T_snow                / Q_local
                   if(Q_local .gt. 0.) then
                      local_z   = 0.2307 * Q_local**0.4123
-                     T_dstrb    = T_dstrb + q_surf*dt_calc / (rho*Cp*local_z)
+                     T_local    = T_local + q_surf*dt_calc / (rho*Cp*local_z)
                   end if
+                  T_local_load = Q_local * T_local
 
                   !!!! Add distributed flows.
                   Q_dstrb       = Q_diff(nncell)
-                  T_dstrb_load  = Q_dstrb*T_dstrb
+                  !T_dstrb_load  = Q_dstrb*T_dstrb
 
                   !!!! Look for a tributary.
                   ntribs = no_tribs(nncell)
@@ -356,7 +358,9 @@ do nyear = start_year, end_year
 !                       + q_dot*dt_calc
                   
                   !!! Updated version
-                  T_0  = T_0*Q_ratio + (T_dstrb_load + T_trb_load) / Q_outflow  
+                  T_0  = T_0*(Q_inflow - Q_runoff - Q_base)  / Q_outflow &
+                       + T_trb_load                          / Q_outflow &
+                       + T_local_load                        / Q_outflow
                   
                   !T_0 minimum value is 0.5 (double check ?!?)
                   if (T_0 .lt. 0.) T_0 = 0.
