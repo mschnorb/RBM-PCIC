@@ -17,9 +17,9 @@ Several modifications to the code have been made, both technical modifications, 
      - Pseudo linear relation between average annual temperature (Tavg in the code) and Thead.
      - Thead = tsoil, used in the actual version.
 - Width, depth and velocity : width and depth are modeled following the power functions designed in Kai et al. 2018. The power functions has been calibrated using the few observations available on the Fraser. Velocity is calculated using the streamflow.
-		Width = 6,6588 * Q**0,4967
-		Depth = 0,2307 * Q**0,5123
-		Velocity = Streamflow / (Width * Depth)
+   - Width = 6.6588 * Q^0.4967
+   - Depth = 0.2307 * Q^0.5123
+   - Velocity = Streamflow / (Width * Depth)
 - The depth used for the local contribution of runoff and baseflow is calculated with the same formula as for the main stream.
 
 ### 1.2. Technical modifications
