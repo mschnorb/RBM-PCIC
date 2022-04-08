@@ -8,9 +8,19 @@ IMPLICIT NONE
 !
 integer :: nc,ncell,nnd,no_flow,no_heat,nr,nrec_flow,nrec_heat
 real    :: Q_avg,Q_dmmy,rho_dmmy
+logical, save :: NotReaded_RiverParam = .TRUE. !Shahab (2022)
 
 no_flow = 0
 no_heat = 0
+if( NotReaded_RiverParam ) then !Shahab (2022)
+    NotReaded_RiverParam = .FALSE. !Shahab (2022)
+    read(300,"(4(f7.4))",end=100) Awidth,Bwidth,Adepth,Bdepth ! 
+    write(*,*) 'Awidth  :', Awidth
+    write(*,*) 'Bwidth  :', Bwidth
+    write(*,*) 'Adepth  :', Adepth
+    write(*,*) 'Bdepth  :', Bdepth
+    100 close(300)
+endif !Shahab (2022)
 
 do nr=1,nreach ! Loop over reach in the network
   do nc=1,no_cells(nr)-1 ! Loop over cells in the reach
@@ -25,19 +35,26 @@ do nr=1,nreach ! Loop over reach in the network
 !            ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Q_runsnow(no_heat) &  
 !            ,depth(no_heat),width(no_heat),u(no_heat)
            
-    read(35,'(2i8,5f12.5)' &
+!    read(35,'(2i8,5f12.5)' &
+!           ,rec=nrec_flow) nnd,ncell &
+!           ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Q_runsnow(no_heat) &
+!           ,u(no_heat)
+     read(35,'(2i8,5f12.5)' &
            ,rec=nrec_flow) nnd,ncell &
            ,Q_out(no_heat),Q_run(no_heat),Q_bas(no_heat),Q_runsnow(no_heat) &
-           ,u(no_heat)
-           
-    depth(no_heat) = 0.2307 * Q_out(no_heat)**0.4123
-    width(no_heat) = 6.6588 * Q_out(no_heat)**0.4967
+           ,u(no_heat)  !S.Larabi (2019)
+   
+!    depth(no_heat) = 0.2307 * Q_out(no_heat)**0.4123
+!    width(no_heat) = 6.6588 * Q_out(no_heat)**0.4967
+    depth(no_heat) = Adepth * Q_out(no_heat)**Bdepth !S.Larabi (2019)
+    width(no_heat) = Awidth * Q_out(no_heat)**Bwidth !S.Larabi (2019)
     !u(no_heat)     = 1.5
     u(no_heat)     = Q_out(no_heat) / (depth(no_heat) * width(no_heat))
 
     Q_diff(no_heat) = 0. ! We will deal with that later. If artificial lateral inflow.
 
-    if(u(no_heat).lt.0.01) u(no_heat)=0.01
+ !   if(u(no_heat).lt.0.01) u(no_heat)=0.01
+    if(u(no_heat).lt.0.45) u(no_heat)=0.45 !S.Larabi (2019) low min speed from YEARSLEY (2012)
     if(ncell.ne.no_heat) write(*,*) 'Flow file error',ncell,no_heat 
 
     read(36,'(i5,4f6.1,2f10.4,f6.3,f7.1,f5.1)' &

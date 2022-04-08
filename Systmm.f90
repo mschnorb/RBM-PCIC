@@ -308,7 +308,8 @@ do nyear = start_year, end_year
                           + (Q_runoff - Q_runoffsnow) * T_runoff / Q_local &
                           + Q_runoffsnow * T_snow                / Q_local
                   if(Q_local .gt. 0.) then
-                     local_z   = 0.2307 * Q_local**0.4123
+!                     local_z   = 0.2307 * Q_local**0.4123
+                     local_z   = Adepth * Q_local**Bdepth
                      T_local    = T_local + q_surf*dt_calc / (rho*Cp*local_z)
                   end if
                   T_local_load = Q_local * T_local

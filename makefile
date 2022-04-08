@@ -10,12 +10,11 @@ objects = rbm10_VIC.o Begin.o Systmm.o Particle_Track.o \
           Block_Energy.o Block_Hydro.o Block_Network.o Block_Netcdf.o \
           Date_Utility.o Error_Handler.o File_Utility.o \
           Water_Balance.o Write.o CheckStatus.o
-f90comp = gfortran
-##keys = -g -fbacktrace -Wall -fcheck=all -c -I /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/include
-keys = -c -I /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/include
+f90comp = ifort
+keys = -c
 # Makefile
 rbm10_VIC: $(objects)
-	$(f90comp) -o RBM_PCIC -I /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/include -L /storage/home/gdayon/hydro/RBM-PCIC/netcdf-fortran/lib -lnetcdff $(objects)
+	$(f90comp) -o RBM_PCIC -lnetcdf -lnetcdff $(objects)
 
 block_energy.mod: Block_Energy.f90
 	$(f90comp) $(keys) Block_Energy.f90

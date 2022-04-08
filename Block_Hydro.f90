@@ -5,6 +5,9 @@ module Block_Hydro
     integer, dimension(2000):: no_dt,nstrt_elm
     real, dimension(2000)   :: dt_part,x_part
 !
+    real :: Awidth,Bwidth ! River Parameters S.Larabi(2019)
+    real :: Adepth,Bdepth ! River Parameters S. Larabi(2019)
+!
     real, dimension(:),   allocatable  :: depth
     real, dimension(:),   allocatable  :: width
     real, dimension(:),   allocatable  :: u

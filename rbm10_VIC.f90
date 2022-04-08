@@ -49,6 +49,7 @@ character (len=200 ):: net_file
 character (len=200 ):: param_file
 character (len=200 ):: temp_file
 character (len=200 ):: spatial_file
+character (len=200 ):: River_param ! S.Larabi (2019)
 character (len=8)   :: start_data,end_data     
 integer iargc
 integer numarg
@@ -75,14 +76,20 @@ call getarg ( 2, outPrefix )
 !
 net_file      = TRIM(inPrefix)//'_Network'
 param_file    = TRIM(inPrefix)//'_Parameters'
+river_param	  = TRIM(inPrefix)//'_RiverParam' ! added River parameters width and depth as inputs to model S.Larabi (2019)
 spatial_file  = TRIM(outPrefix)//'.Spat'
 temp_file     = TRIM(outPrefix)//'.Temp'
 !
-write(*,*) 'Spatial file: ',spatial_file
+write(*,*) 'Spatial file    : ',spatial_file
 write(*,*) 'Network file    : ',net_file
 write(*,*) 'Parameter file  : ',param_file
 write(*,*) 'Temperature file: ',temp_file
+write(*,*) 'River file      : ',river_param
 !
+
+!     OPEN RIVER PARAMERER FILE
+OPEN(UNIT=300,FILE=TRIM(river_param),STATUS='OLD')!,FORM='FORMATTED',ACCESS='DIRECT',RECL=80,STATUS='OLD') S.Larabi (2019)
+
 OPEN(UNIT=90,FILE=TRIM(net_file),STATUS='OLD')
 !
 !     Read header information from control file
@@ -123,5 +130,6 @@ write(*,*) ' Closing files after simulation'
 CLOSE(35)
 CLOSE(36)
 CLOSE(90)
+CLOSE(300) !S.Larabi (2019)
 STOP
 END PROGRAM RBM10_VIC
